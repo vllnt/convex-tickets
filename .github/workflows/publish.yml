@@ -1,0 +1,153 @@
+name: Publish
+
+# Canary: a push to main touching the package or its shipped docs, only while
+# the repository variable CANARY_ENABLED is 'true', or a manual run on main.
+# Stable (@latest): only a pushed vX.Y.Z tag whose commit is on main and
+# matches package.json and a CHANGELOG.md entry. Both use npm trusted
+# publishing (OIDC) with provenance; this workflow holds no npm token.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+    # Not evaluated for tag pushes.
+    paths:
+      - "src/**"
+      - "docs/API.md"
+      - "README.md"
+      - "CHANGELOG.md"
+      - "llms.txt"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/publish.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck:ci
+      - run: pnpm test:coverage
+      - run: pnpm build
+
+  canary:
+    name: Publish Canary
+    needs: quality
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.CANARY_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Check package contents
+        working-directory: ${{ github.workspace }}
+        run: bash scripts/check-package-contents.sh
+      - name: Publish canary
+        run: |
+          set -euo pipefail
+          sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
+          unset NODE_AUTH_TOKEN
+
+          PKG=$(node -p "require('./package.json').name")
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          # A canary of an already-published version is work toward the next patch, so it
+          # must sort above that release.
+          if [ -n "$(npm view "${PKG}@${BASE_VERSION}" version 2>/dev/null || true)" ]; then
+            BASE_VERSION=$(node -e "const v=require('./package.json').version.split('.').map(Number); console.log(v[0]+'.'+v[1]+'.'+(v[2]+1))")
+          fi
+          CANARY_VERSION="${BASE_VERSION}-canary.${GITHUB_SHA::7}"
+          npm version "$CANARY_VERSION" --no-git-tag-version --ignore-scripts
+          npm publish --tag canary --provenance --access public --ignore-scripts
+
+  release:
+    name: Publish Release
+    needs: quality
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify release tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::package.json version $VERSION is not a stable semver"; exit 1; }
+          [ "$TAG" = "v$VERSION" ] || { echo "::error::tag $TAG does not match package.json version $VERSION"; exit 1; }
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::$TAG is not on main"; exit 1; }
+          grep -qF "## [$VERSION]" CHANGELOG.md || { echo "::error::CHANGELOG.md has no [$VERSION] entry"; exit 1; }
+          awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      - name: Check package contents
+        working-directory: ${{ github.workspace }}
+        run: bash scripts/check-package-contents.sh
+      - name: Publish to npm
+        run: |
+          set -euo pipefail
+          sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
+          unset NODE_AUTH_TOKEN
+          PKG=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          # Re-runs after a later step failed must not try to republish.
+          if [ -n "$(npm view "${PKG}@${VERSION}" version 2>/dev/null || true)" ]; then
+            echo "${PKG}@${VERSION} is already published"
+          else
+            npm publish --tag latest --provenance --access public --ignore-scripts
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          PKG=$(node -p "require('./package.json').name")
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --verify-tag --title "$PKG $TAG" --notes-file "$RUNNER_TEMP/release-notes.md"

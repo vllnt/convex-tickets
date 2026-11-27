@@ -1,0 +1,135 @@
+{
+  "name": "@vllnt/convex-tickets",
+  "version": "0.1.0",
+  "description": "Convex component for work items that humans and AI agents open, claim, discuss, hand off and resolve: queues, named states, claims with optional leases, blockers and a host hook",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.34.8",
+  "files": [
+    "dist",
+    "src",
+    "docs/API.md",
+    "CHANGELOG.md",
+    "llms.txt",
+    "!src/**/*.test.ts",
+    "!src/**/*.spec.*"
+  ],
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/client/index.d.ts",
+      "default": "./dist/client/index.js"
+    },
+    "./presets": {
+      "types": "./dist/client/presets.d.ts",
+      "default": "./dist/client/presets.js"
+    },
+    "./tools": {
+      "types": "./dist/client/tools.d.ts",
+      "default": "./dist/client/tools.js"
+    },
+    "./test": "./src/test.ts",
+    "./_generated/component.js": {
+      "types": "./dist/component/_generated/component.d.ts"
+    },
+    "./_generated/component": {
+      "types": "./dist/component/_generated/component.d.ts"
+    },
+    "./convex.config": {
+      "types": "./dist/component/convex.config.d.ts",
+      "default": "./dist/component/convex.config.js"
+    },
+    "./convex.config.js": {
+      "types": "./dist/component/convex.config.d.ts",
+      "default": "./dist/component/convex.config.js"
+    }
+  },
+  "types": "./dist/client/index.d.ts",
+  "module": "./dist/client/index.js",
+  "scripts": {
+    "build": "tsc --project ./tsconfig.build.json",
+    "build:codegen": "pnpm codegen && pnpm build",
+    "build:clean": "rm -rf dist *.tsbuildinfo && pnpm build:codegen",
+    "typecheck": "tsc --noEmit --incremental --tsBuildInfoFile node_modules/.cache/tsc/typecheck.tsbuildinfo",
+    "typecheck:ci": "tsc --noEmit --incremental --tsBuildInfoFile node_modules/.cache/tsc/typecheck-ci.tsbuildinfo --project tsconfig.ci.json",
+    "lint": "pnpm check:agents && eslint --cache --cache-location node_modules/.cache/eslint/ .",
+    "test": "pnpm check:agents && pnpm test:package && vitest run --passWithNoTests",
+    "test:watch": "vitest --typecheck --clearScreen false",
+    "test:coverage": "pnpm test:package && vitest run --coverage --coverage.reporter=text",
+    "test:package": "node scripts/test-package.mjs",
+    "generate:llms": "node scripts/generate-llms.mjs",
+    "preversion": "pnpm install --frozen-lockfile && pnpm build && pnpm test && pnpm typecheck && pnpm generate:llms",
+    "check:agents": "node -e \"const f=require('node:fs');if(!f.existsSync('AGENTS.md')||f.existsSync('CLAUDE.md')||f.existsSync('.claude'))process.exit(1)\"",
+    "codegen": "pnpm convex codegen --component-dir ./src/component"
+  },
+  "dependencies": {
+    "@convex-dev/rate-limiter": "^0.4.3"
+  },
+  "peerDependencies": {
+    "convex": "^1.45.0"
+  },
+  "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
+    "@typescript/native": "npm:typescript@7.0.2",
+    "@vitest/coverage-v8": "^5.1.0",
+    "@vllnt/eslint-config": "2.1.0",
+    "@vllnt/typescript": "2.0.0",
+    "convex": "1.50.0",
+    "convex-test": "^0.0.71",
+    "eslint": "^9.39.5",
+    "prettier": "^3.10.1",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  },
+  "homepage": "https://oss.vllnt.com/packages/convex-tickets",
+  "bugs": {
+    "url": "https://github.com/vllnt/convex-tickets/issues"
+  },
+  "author": {
+    "name": "bntvllnt",
+    "url": "https://bntvllnt.com"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/bntvllnt"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vllnt/convex-tickets"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "keywords": [
+    "convex",
+    "convex-component",
+    "tickets",
+    "work-queue",
+    "task-queue",
+    "ai-agents",
+    "agent-handoff",
+    "helpdesk",
+    "issue-tracker",
+    "claims",
+    "leases"
+  ],
+  "pnpm": {
+    "minimumReleaseAge": 10080,
+    "minimumReleaseAgeExclude": [
+      "@vllnt/*"
+    ],
+    "ignoredBuiltDependencies": [
+      "esbuild"
+    ],
+    "overrides": {
+      "minimatch@>=7.0.0 <11.0.1": "11.0.5",
+      "deepmerge-ts@<8.0.0": "8.0.2",
+      "handlebars@<4.7.10": "4.7.10"
+    }
+  }
+}
