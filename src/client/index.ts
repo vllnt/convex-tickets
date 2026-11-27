@@ -1,7 +1,7 @@
 import { createFunctionHandle } from "convex/server";
 import type { FunctionArgs, FunctionReference, FunctionReturnType, PaginationOptions } from "convex/server";
 import type { ComponentApi } from "../component/_generated/component.js";
-import { DEFAULT_POLICY, DEFAULT_STATES } from "../shared.js";
+import { DEFAULT_POLICY, DEFAULT_STATES, ticketsError } from "../shared.js";
 import type { Category, Limits, Party, Resolution, Scalar, TicketEvent, Visibility } from "../shared.js";
 import type {
   AnyQueue,
@@ -25,6 +25,7 @@ export {
   DEFAULT_POLICY,
   DEFAULT_STATES,
   ERROR_CODES,
+  LIMIT_CEILINGS,
   SYSTEM_PARTY,
   TRANSITION_TYPES,
   isTicketsError,
@@ -142,8 +143,12 @@ function toFieldDefs(fields: FieldsSpec | undefined) {
  * @param name - The queue name.
  * @param definition - The queue definition.
  * @returns The definition with defaults applied.
+ * @throws `INVALID_QUEUE` when `states` is an array instead of a record.
  */
-export function toQueueDef(name: string, definition: AnyQueue) {
+export function toQueueDef(name: string, definition: AnyQueue): FunctionArgs<Api["mutations"]["sync"]>["queues"][number] {
+  if (Array.isArray(definition.states)) {
+    throw ticketsError("INVALID_QUEUE", `queue "${name}": states is a record of state name to { category }, not an array`);
+  }
   const states = definition.states
     ? Object.entries(definition.states).map(([state, spec]) => ({ name: state, category: spec.category, on: spec.on }))
     : DEFAULT_STATES.map((s) => ({ name: s.name, category: s.category }));
@@ -174,7 +179,8 @@ function valueFits(spec: FieldsSpec[string] | undefined, value: Scalar | undefin
 }
 
 function isScalar(value: unknown): value is Scalar {
-  return value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+  if (typeof value === "number") return Number.isFinite(value);
+  return value === null || typeof value === "string" || typeof value === "boolean";
 }
 
 /**
@@ -182,10 +188,19 @@ function isScalar(value: unknown): value is Scalar {
  *
  * @param input - Typed field or result values.
  * @returns A scalar record, or undefined when nothing was given.
+ * @throws `INVALID_FIELD` for a value that is not a string, a finite number, a boolean or null.
  */
 export function toValues(input: object | undefined): Record<string, Scalar> | undefined {
   if (input === undefined) return undefined;
-  return Object.fromEntries(Object.entries(input).filter((entry): entry is [string, Scalar] => isScalar(entry[1])));
+  const values: Record<string, Scalar> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (value === undefined) continue;
+    if (!isScalar(value)) {
+      throw ticketsError("INVALID_FIELD", `${key} must be a string, a finite number, a boolean or null`);
+    }
+    values[key] = value;
+  }
+  return values;
 }
 
 type QueueName<Q extends QueueMap> = keyof Q & string;

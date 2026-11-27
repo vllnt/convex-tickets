@@ -9,12 +9,14 @@ import { landingState, loadConfig } from "./queues.js";
 export const PURGE_BATCH = 200;
 
 /**
- * Lease timer. Runs at the lease's expiry. Does nothing when the claim it was set
- * for is gone; follows a renewal by rescheduling; otherwise returns the ticket to
- * its queue, or escalates it after `maxReturns` expiries.
+ * Lease timer. Runs at the lease's expiry. Does nothing when the lease it was set
+ * for is gone (a renewal keeps the lease row, a claim or resume makes a new one,
+ * so the old timer ends), or when the queue no longer has leases; follows a
+ * renewal by rescheduling; otherwise returns the ticket to its queue, or
+ * escalates it after `maxReturns` expiries, once.
  */
 export const expireLease = internalMutation({
-  args: { ticketId: v.id("tickets"), claimSeq: v.number() },
+  args: { ticketId: v.id("tickets"), claimSeq: v.number(), leaseId: v.id("leases") },
   returns: v.null(),
   handler: async (ctx, args) => {
     const env = await makeEnv(ctx);
@@ -23,15 +25,18 @@ export const expireLease = internalMutation({
       .query("leases")
       .withIndex("by_ticket", (q) => q.eq("ticketId", args.ticketId))
       .unique();
-    if (!ticket || !lease || lease.claimSeq !== args.claimSeq || ticket.claimSeq !== args.claimSeq) return null;
+    if (!ticket || !lease || lease._id !== args.leaseId || ticket.claimSeq !== args.claimSeq) return null;
+    const queue = await queueOf(env, ticket.queue);
+    if (queue.policy.leaseMs === null) return null;
     if (lease.expiresAt > env.now) {
       await ctx.scheduler.runAt(lease.expiresAt, internal.internal_mutations.expireLease, args);
       return null;
     }
     await stopLease(env, ticket._id);
-    const queue = await queueOf(env, ticket.queue);
     const leaseExpiryCount = ticket.leaseExpiryCount + 1;
-    if (leaseExpiryCount >= queue.policy.maxReturns && queue.policy.escalateTo !== undefined) {
+    const escalates =
+      leaseExpiryCount >= queue.policy.maxReturns && queue.policy.escalateTo !== undefined && ticket.escalatedAt === undefined;
+    if (escalates) {
       await escalateTicket(env, ticket, SYSTEM_PARTY, `lease expired ${leaseExpiryCount} times`, { leaseExpiryCount });
       return null;
     }
@@ -52,7 +57,7 @@ export const expireLease = internalMutation({
   },
 });
 
-/** Due timer. Emits `due_breached` once, and escalates when the queue policy says so. */
+/** Due timer. Emits `due_breached` once, and escalates when the queue policy says so and the ticket has not escalated yet. */
 export const dueTimer = internalMutation({
   args: { ticketId: v.id("tickets"), dueAt: v.number() },
   returns: v.null(),
@@ -68,7 +73,7 @@ export const dueTimer = internalMutation({
       { type: "due_breached", actor: SYSTEM_PARTY },
     );
     const queue = await queueOf(env, breached.queue);
-    if (queue.policy.escalateOnDue === true) {
+    if (queue.policy.escalateOnDue === true && breached.escalatedAt === undefined) {
       await escalateTicket(env, breached, SYSTEM_PARTY, "due time passed");
     }
     return null;

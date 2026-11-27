@@ -47,7 +47,7 @@ import {
   transition,
   waitingLanding,
 } from "./engine.js";
-import type { Env, Ticket } from "./engine.js";
+import type { Env, Queue, Ticket } from "./engine.js";
 import {
   assertLength,
   checkAdditive,
@@ -89,6 +89,30 @@ function checkReason(env: Env, reason: string | undefined): void {
   if (reason !== undefined) assertLength("reason", reason, env.limits.maxStringChars);
 }
 
+async function assertOpenRoom(env: Env, requesterRef: string, queue: Queue): Promise<void> {
+  const cap = queue.policy.maxOpenPerRequester;
+  if ((await countOpenFor(env, requesterRef, queue.name, cap)) >= cap) {
+    throw ticketsError("TOO_MANY_OPEN", `${requesterRef} already has ${cap} open tickets in "${queue.name}"`);
+  }
+}
+
+async function takeMessageSlot(env: Env, ticket: Ticket, queue: Queue, actor: Party): Promise<void> {
+  if (ticket.messageCount >= queue.policy.maxMessages) {
+    throw ticketsError("MESSAGE_LIMIT", `the ticket already has ${queue.policy.maxMessages} messages`);
+  }
+  await rateLimit(env, "message", actor.ref);
+}
+
+async function recordTrip(
+  env: Env,
+  ticket: Ticket,
+  actor: Party,
+  code: "HOP_LIMIT" | "PING_PONG" | "MESSAGE_LIMIT",
+  text: string,
+): Promise<void> {
+  await transition(env, ticket, {}, { type: "guardrail_tripped", actor, reason: `${code}: ${text}` });
+}
+
 /**
  * Write the queue definitions, state names, field types, limits and hook handle.
  * Run once per deploy from the host (the client's `sync`). Additive only.
@@ -125,6 +149,16 @@ export const sync = mutation({
           .unique(),
       ),
     );
+    const startedUnderFlip = await Promise.all(
+      args.queues.map((def, index) => {
+        const current = existing[index];
+        if (!current || (current.policy.leaseMs === null) === (def.policy.leaseMs === null)) return null;
+        return ctx.db
+          .query("tickets")
+          .withIndex("by_queue_category", (q) => q.eq("queue", def.name).eq("category", "started"))
+          .first();
+      }),
+    );
     const outside = [
       ...new Set(
         args.queues
@@ -154,6 +188,12 @@ export const sync = mutation({
         continue;
       }
       const removed = checkAdditive(current, def);
+      if (startedUnderFlip[index]) {
+        throw ticketsError(
+          "INVALID_QUEUE",
+          `queue "${def.name}": leaseMs cannot switch between a number and null while a ticket is started`,
+        );
+      }
       const inUse = await Promise.all(
         removed.map((state) =>
           ctx.db
@@ -243,10 +283,7 @@ export const open = mutation({
     }
     if (args.parentId !== undefined) await loadTicket(env, args.parentId);
     await rateLimit(env, "open", args.actor.ref);
-    const cap = queue.policy.maxOpenPerRequester;
-    if ((await countOpenFor(env, args.actor.ref, queue.name, cap)) >= cap) {
-      throw ticketsError("TOO_MANY_OPEN", `${args.actor.ref} already has ${cap} open tickets in "${queue.name}"`);
-    }
+    await assertOpenRoom(env, args.actor.ref, queue);
     const dueAt = queue.policy.dueInMs === undefined ? undefined : env.now + queue.policy.dueInMs;
     const ticketId = await ctx.db.insert("tickets", {
       queue: queue.name,
@@ -508,9 +545,7 @@ export const requestInput = mutation({
         throw ticketsError("UNKNOWN_FIELD", `fields.${key} is not declared by the queue`);
       }
     }
-    if (ticket.messageCount >= queue.policy.maxMessages) {
-      throw ticketsError("MESSAGE_LIMIT", `the ticket already has ${queue.policy.maxMessages} messages`);
-    }
+    await takeMessageSlot(env, ticket, queue, args.actor);
     const state = await waitingLanding(env, ticket, "requester", args.to);
     const written = await insertMessage(env, ticket, {
       author: args.actor,
@@ -573,6 +608,9 @@ export const reply = mutation({
       const escalated = canEscalate
         ? (await escalateTicket(env, ticket, SYSTEM_PARTY, `message limit of ${queue.policy.maxMessages} reached`)) !== null
         : false;
+      if (!escalated) {
+        await recordTrip(env, ticket, args.actor, "MESSAGE_LIMIT", `the ticket already has ${queue.policy.maxMessages} messages`);
+      }
       return { ok: false as const, reason: "MESSAGE_LIMIT" as const, escalated };
     }
     await rateLimit(env, "message", args.actor.ref);
@@ -668,9 +706,10 @@ async function pingPong(env: Env, ticket: Ticket, target: { queue: string; party
   return gaveAway.length >= 2;
 }
 
-async function refuseHandoff(env: Env, ticket: Ticket, reason: "HOP_LIMIT" | "PING_PONG") {
+async function refuseHandoff(env: Env, ticket: Ticket, actor: Party, reason: "HOP_LIMIT" | "PING_PONG") {
   const escalated =
     ticket.escalatedAt === undefined && (await escalateTicket(env, ticket, SYSTEM_PARTY, `handoff refused: ${reason}`)) !== null;
+  if (!escalated) await recordTrip(env, ticket, actor, reason, "handoff refused");
   return { ok: false as const, reason, escalated };
 }
 
@@ -703,9 +742,9 @@ export const handoff = mutation({
     const target = await queueOf(env, args.toQueue ?? ticket.queue);
     const fields = args.fields ?? {};
     checkFields(target.fields, fields, env.limits, { requireAll: false, label: "fields" });
-    if (ticket.hopCount >= queue.policy.maxHops) return await refuseHandoff(env, ticket, "HOP_LIMIT");
+    if (ticket.hopCount >= queue.policy.maxHops) return await refuseHandoff(env, ticket, args.actor, "HOP_LIMIT");
     if (await pingPong(env, ticket, { queue: target.name, party: args.toParty })) {
-      return await refuseHandoff(env, ticket, "PING_PONG");
+      return await refuseHandoff(env, ticket, args.actor, "PING_PONG");
     }
     const sameQueue = target.name === ticket.queue;
     const toParty = args.toParty;
@@ -768,7 +807,10 @@ export const resolve = mutation({
       requireAll: args.resolution === "completed",
       label: "result",
     });
-    if (args.body !== undefined) assertLength("body", args.body, env.limits.maxBodyChars);
+    if (args.body !== undefined) {
+      assertLength("body", args.body, env.limits.maxBodyChars);
+      await takeMessageSlot(env, ticket, queue, args.actor);
+    }
     const state = landingState(queue, "done", args.to);
     let current = ticket;
     if (args.body !== undefined) {
@@ -804,6 +846,7 @@ export const reopen = mutation({
     assertRequesterOrTrusted(ticket, args.actor, args.trusted);
     checkReason(env, args.reason);
     const queue = await queueOf(env, ticket.queue);
+    await assertOpenRoom(env, ticket.requesterRef, queue);
     const wasCompleted = isCompleted(ticket);
     const next = await transition(
       env,
@@ -823,6 +866,12 @@ export const reopen = mutation({
       { type: "reopened", actor: args.actor, reason: args.reason },
     );
     if (wasCompleted) await onBlockerReopened(env, ticket._id);
+    if (ticket.dueAt !== undefined && ticket.dueBreachedAt === undefined) {
+      await ctx.scheduler.runAt(Math.max(ticket.dueAt, env.now), internal.internal_mutations.dueTimer, {
+        ticketId: ticket._id,
+        dueAt: ticket.dueAt,
+      });
+    }
     return moved(next);
   },
 });
@@ -930,6 +979,7 @@ export const link = mutation({
   handler: async (ctx, args) => {
     const env = await makeEnv(ctx);
     const ticket = await loadTicket(env, args.ticketId);
+    assertNotSealed(ticket);
     for (const [name, value] of [["refKind", args.refKind], ["ref", args.ref], ["label", args.label]] as const) {
       if (value !== undefined) assertLength(name, value, env.limits.maxStringChars);
     }
@@ -950,7 +1000,6 @@ export const link = mutation({
       if (added.open) await ctx.db.patch("tickets", blocked._id, { openBlockers: blocked.openBlockers + 1 });
       return added.linkId;
     }
-    assertNotSealed(ticket);
     if (args.toTicketId !== undefined) {
       if (args.toTicketId === ticket._id) throw ticketsError("INVALID_ARGUMENT", "a ticket cannot link to itself");
       await loadTicket(env, args.toTicketId);
@@ -968,7 +1017,10 @@ export const link = mutation({
   },
 });
 
-/** Remove a link. Removing a blocks link keeps the waiting ticket's counter exact. */
+/**
+ * Remove a link. Removing a blocks link keeps the waiting ticket's counter exact.
+ * Refused with `SEALED` when the link's owner is sealed, or, for a blocks link, when the waiting ticket is.
+ */
 export const unlink = mutation({
   args: { linkId: v.id("links") },
   returns: v.null(),
@@ -976,6 +1028,11 @@ export const unlink = mutation({
     const env = await makeEnv(ctx);
     const row = await ctx.db.get("links", args.linkId);
     if (!row) throw ticketsError("NOT_FOUND", `link ${args.linkId} does not exist`);
+    const touched = row.relation === "blocks" ? [row.ticketId, row.toTicketId] : [row.ticketId];
+    const tickets = await Promise.all(touched.map((id) => (id === undefined ? null : ctx.db.get("tickets", id))));
+    for (const ticket of tickets) {
+      if (ticket) assertNotSealed(ticket);
+    }
     if (row.relation === "blocks") await removeBlocker(env, row);
     else await ctx.db.delete("links", row._id);
     return null;

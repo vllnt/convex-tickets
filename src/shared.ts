@@ -54,6 +54,7 @@ export const TRANSITION_TYPES = [
   "canceled",
   "escalated",
   "due_breached",
+  "guardrail_tripped",
 ] as const;
 export type TransitionType = (typeof TRANSITION_TYPES)[number];
 
@@ -96,6 +97,13 @@ export const DEFAULT_LIMITS = {
   messagesPerMinute: 120,
 } as const;
 export type Limits = { [K in keyof typeof DEFAULT_LIMITS]: number };
+
+/**
+ * Highest value of each graph limit. Every read of blocker links takes up to
+ * the ceiling, so lowering a limit later never hides links that already exist;
+ * the limit itself only gates new links.
+ */
+export const LIMIT_CEILINGS = { maxBlockers: 20, maxBlocked: 100, maxGraphWalk: 200 } as const;
 
 /** Highest and lowest priority. 0 is urgent. */
 export const PRIORITY_MIN = 0;
@@ -171,6 +179,7 @@ export const transitionTypeValidator = v.union(
   v.literal("canceled"),
   v.literal("escalated"),
   v.literal("due_breached"),
+  v.literal("guardrail_tripped"),
 );
 
 /** A field value: string, number, boolean or null. No nested data. */

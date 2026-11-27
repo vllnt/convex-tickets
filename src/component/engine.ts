@@ -1,6 +1,6 @@
 import { RateLimiter } from "@convex-dev/rate-limiter";
 import type { FunctionHandle } from "convex/server";
-import { PRIORITY_MIN, SYSTEM_PARTY, ticketsError } from "../shared.js";
+import { LIMIT_CEILINGS, PRIORITY_MIN, SYSTEM_PARTY, ticketsError } from "../shared.js";
 import type { Category, Limits, Party, TicketEvent, TransitionType, WaitingOn } from "../shared.js";
 import { components, internal } from "./_generated/api.js";
 import type { Doc, Id } from "./_generated/dataModel.js";
@@ -312,7 +312,7 @@ export async function startLease(env: Env, ticket: Ticket): Promise<number | und
   const queue = await queueOf(env, ticket.queue);
   if (queue.policy.leaseMs === null || ticket.assigneeRef === undefined) return undefined;
   const expiresAt = env.now + queue.policy.leaseMs;
-  await env.ctx.db.insert("leases", {
+  const leaseId = await env.ctx.db.insert("leases", {
     ticketId: ticket._id,
     partyRef: ticket.assigneeRef,
     claimSeq: ticket.claimSeq,
@@ -321,6 +321,7 @@ export async function startLease(env: Env, ticket: Ticket): Promise<number | und
   await env.ctx.scheduler.runAt(expiresAt, internal.internal_mutations.expireLease, {
     ticketId: ticket._id,
     claimSeq: ticket.claimSeq,
+    leaseId,
   });
   return expiresAt;
 }
@@ -435,18 +436,23 @@ export async function escalateTicket(
   );
 }
 
+/**
+ * Reads take the ceiling, not the current limit: lowering a limit after links
+ * exist must not hide them, or a cascade would skip dependents and a cycle walk
+ * would miss edges. Only the cap checks use `env.limits`.
+ */
 async function blockerLinks(env: Env, blockerId: Id<"tickets">): Promise<Doc<"links">[]> {
   return await env.ctx.db
     .query("links")
     .withIndex("by_ticket", (q) => q.eq("ticketId", blockerId).eq("relation", "blocks"))
-    .take(env.limits.maxBlocked);
+    .take(LIMIT_CEILINGS.maxBlocked);
 }
 
-async function blockersOf(env: Env, ticketId: Id<"tickets">, limit: number): Promise<Doc<"links">[]> {
+async function blockersOf(env: Env, ticketId: Id<"tickets">): Promise<Doc<"links">[]> {
   return await env.ctx.db
     .query("links")
     .withIndex("by_target", (q) => q.eq("toTicketId", ticketId).eq("relation", "blocks"))
-    .take(limit);
+    .take(LIMIT_CEILINGS.maxBlockers);
 }
 
 async function dependentsOf(env: Env, blockerId: Id<"tickets">): Promise<Ticket[]> {
@@ -466,7 +472,7 @@ async function assertNoCycle(env: Env, blockerId: Id<"tickets">, blockedId: Id<"
   const seen = new Set<Id<"tickets">>([blockerId]);
   let frontier: Id<"tickets">[] = [blockerId];
   while (frontier.length > 0) {
-    const levels = await Promise.all(frontier.map((id) => blockersOf(env, id, env.limits.maxBlockers)));
+    const levels = await Promise.all(frontier.map((id) => blockersOf(env, id)));
     const nextFrontier: Id<"tickets">[] = [];
     for (const link of levels.flat()) {
       if (link.ticketId === blockedId) throw ticketsError("CYCLE", "this link would close a cycle of blockers");
@@ -500,7 +506,7 @@ export async function addBlocker(
   options: { isNew: boolean },
 ): Promise<{ linkId: Id<"links">; open: boolean }> {
   const [existing, blocker, dependents] = await Promise.all([
-    blockersOf(env, blocked._id, env.limits.maxBlockers),
+    blockersOf(env, blocked._id),
     loadTicket(env, blockerId),
     blockerLinks(env, blockerId),
   ]);
@@ -509,6 +515,10 @@ export async function addBlocker(
   }
   if (dependents.length >= env.limits.maxBlocked) {
     throw ticketsError("TOO_MANY_BLOCKED", `a ticket can block at most ${env.limits.maxBlocked} others`);
+  }
+  const ended = blocker.category === "done" || blocker.category === "canceled";
+  if (ended && !isCompleted(blocker)) {
+    throw ticketsError("INVALID_ARGUMENT", `blocker ${blockerId} ended without completing, so it can never clear`);
   }
   if (!options.isNew) await assertNoCycle(env, blockerId, blocked._id);
   const linkId = await env.ctx.db.insert("links", {
@@ -533,7 +543,7 @@ export async function addBlockers(
   actor: Party,
   options: { isNew: boolean },
 ): Promise<number> {
-  const existing = await blockersOf(env, blocked._id, env.limits.maxBlockers);
+  const existing = await blockersOf(env, blocked._id);
   const fresh = [...new Set(blockerIds)].filter((id) => !existing.some((l) => l.ticketId === id));
   let open = 0;
   for (const id of fresh) {

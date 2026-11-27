@@ -1,4 +1,4 @@
-import { DEFAULT_LIMITS, ticketsError } from "../shared.js";
+import { DEFAULT_LIMITS, LIMIT_CEILINGS, ticketsError } from "../shared.js";
 import type { Category, Limits, ScalarRecord, WaitingOn } from "../shared.js";
 import type { Doc } from "./_generated/dataModel.js";
 import type { QueryCtx } from "./_generated/server.js";
@@ -8,6 +8,13 @@ import type { FieldDef, QueueDef, StateDef } from "./validators.js";
 const REQUIRED_CATEGORIES: readonly Category[] = ["unstarted", "started", "done", "canceled"];
 
 const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_:.\- ]*$/;
+
+const KEY_PATTERN = /^[\x20-\x7E]+$/;
+
+/** Convex stores a field name only when it is non-empty printable ASCII and does not start with `$` or `_`. */
+function isStorableKey(key: string): boolean {
+  return KEY_PATTERN.test(key) && !key.startsWith("$") && !key.startsWith("_");
+}
 
 /**
  * Load a queue row by name.
@@ -161,8 +168,11 @@ export function withoutNulls(values: ScalarRecord): ScalarRecord {
 function checkFieldDefs(queue: string, label: string, defs: readonly FieldDef[]): void {
   const seen = new Set<string>();
   for (const def of defs) {
-    if (!def.key || seen.has(def.key)) {
-      throw ticketsError("INVALID_QUEUE", `queue "${queue}": ${label} key "${def.key}" is empty or repeated`);
+    if (!isStorableKey(def.key) || seen.has(def.key)) {
+      throw ticketsError(
+        "INVALID_QUEUE",
+        `queue "${queue}": ${label} key "${def.key}" is repeated, or is not printable ASCII, or starts with "$" or "_"`,
+      );
     }
     seen.add(def.key);
     const hasOptions = def.options !== undefined && def.options.length > 0;
@@ -256,16 +266,22 @@ export function checkAdditive(current: Doc<"queues">, next: QueueDef): string[] 
 }
 
 /**
- * Merge input limits over the defaults and check they are positive integers.
+ * Merge input limits over the defaults and check they are positive integers,
+ * and that each graph limit is within its ceiling.
  *
  * @param input - Partial limits from the client.
  * @returns A full limits object.
  */
 export function resolveLimits(input: Partial<Limits> | undefined): Limits {
   const limits: Limits = { ...DEFAULT_LIMITS, ...input };
+  const ceilings: Record<string, number> = LIMIT_CEILINGS;
   for (const [key, value] of Object.entries(limits)) {
     if (!Number.isInteger(value) || value <= 0) {
       throw ticketsError("INVALID_ARGUMENT", `limits.${key} must be a positive integer`);
+    }
+    const ceiling = ceilings[key];
+    if (ceiling !== undefined && value > ceiling) {
+      throw ticketsError("INVALID_ARGUMENT", `limits.${key} can be at most ${ceiling}`);
     }
   }
   return limits;

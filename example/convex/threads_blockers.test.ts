@@ -334,6 +334,7 @@ describe("requestInput", () => {
     expect(asked.category).toBe("waiting");
     expect((await detail(t, under)).ticket.messageCount).toBe(3);
 
+    await drain(t, MINUTE);
     const full = await openTalk();
     const fullSeq = await claimed(full);
     await say(t, full, A, "one");
@@ -593,9 +594,9 @@ describe("message cap, rate limit and body size", () => {
 
     const again = await t.run((ctx) => chat.reply(ctx, { ticketId: id, actor: B, body: "five" }));
     expect(again).toEqual({ ok: false, reason: "MESSAGE_LIMIT", escalated: false });
-    expect(await historyTypes(t, id)).toEqual(["opened", "escalated"]);
+    expect(await historyTypes(t, id)).toEqual(["opened", "escalated", "guardrail_tripped"]);
     expect((await detail(t, id)).ticket.priority).toBe(1);
-    expect(await eventTypes(t, id)).toEqual(["opened", "escalated"]);
+    expect(await eventTypes(t, id)).toEqual(["opened", "escalated", "guardrail_tripped"]);
   });
 
   test("a queue with no escalation target refuses the reply at the cap and the ticket stays put", async () => {
@@ -607,7 +608,7 @@ describe("message cap, rate limit and body size", () => {
     const refused = await t.run((ctx) => chat.reply(ctx, { ticketId: id, actor: A, body: "three" }));
     expect(refused).toEqual({ ok: false, reason: "MESSAGE_LIMIT", escalated: false });
     expect((await detail(t, id)).ticket).toMatchObject({ queue: "solo", category: "unstarted", messageCount: 2 });
-    expect(await historyTypes(t, id)).toEqual(["opened"]);
+    expect(await historyTypes(t, id)).toEqual(["opened", "guardrail_tripped"]);
   });
 
   test("a refused reply on a resolved ticket does not escalate it", async () => {
@@ -1425,6 +1426,10 @@ function isEnded(view: TicketDetail): boolean {
   return view.ticket.category === "done" || view.ticket.category === "canceled";
 }
 
+function neverClears(view: TicketDetail): boolean {
+  return isEnded(view) && !(view.ticket.category === "done" && view.ticket.resolution === "completed");
+}
+
 async function randomStep(t: T, next: () => number, snap: readonly TicketDetail[], stats: Stats): Promise<string> {
   const roll = next();
   const wantFree = next() < 0.6;
@@ -1433,6 +1438,11 @@ async function randomStep(t: T, next: () => number, snap: readonly TicketDetail[
     const blocker = must(snap[Math.floor(next() * snap.length)], "blocker");
     const gap = 1 + Math.floor(next() * (snap.length - 1));
     const dependent = must(snap[(snap.indexOf(blocker) + gap) % snap.length], "dependent");
+    const linkedAlready = dependent.blockers.some((b) => b.ticketId === blocker.ticket.ticketId);
+    if (neverClears(blocker) && !linkedAlready) {
+      await expectCode(block(t, blocker.ticket.ticketId, dependent.ticket.ticketId), "INVALID_ARGUMENT");
+      return `${blocker.ticket.title} ended without completing, so it cannot block ${dependent.ticket.title}`;
+    }
     if (await allowing(block(t, blocker.ticket.ticketId, dependent.ticket.ticketId), "CYCLE")) stats.linked += 1;
     else stats.cycles += 1;
     return `${blocker.ticket.title} blocks ${dependent.ticket.title}`;

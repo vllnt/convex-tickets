@@ -819,7 +819,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               | "closed"
               | "canceled"
               | "escalated"
-              | "due_breached";
+              | "due_breached"
+              | "guardrail_tripped";
           }>;
           pageStatus?: "SplitRecommended" | "SplitRequired" | null;
           splitCursor?: string | null;

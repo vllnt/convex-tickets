@@ -100,9 +100,9 @@ describe("the fixed vocabulary", () => {
     expect(PARTY_KINDS).toEqual(["human", "agent", "system"]);
   });
 
-  test("there are nineteen distinct transition types", () => {
-    expect(TRANSITION_TYPES).toHaveLength(19);
-    expect(new Set(TRANSITION_TYPES).size).toBe(19);
+  test("there are twenty distinct transition types", () => {
+    expect(TRANSITION_TYPES).toHaveLength(20);
+    expect(new Set(TRANSITION_TYPES).size).toBe(20);
     expect(TRANSITION_TYPES).toEqual([
       "opened",
       "moved",
@@ -123,6 +123,7 @@ describe("the fixed vocabulary", () => {
       "canceled",
       "escalated",
       "due_breached",
+      "guardrail_tripped",
     ]);
   });
 
