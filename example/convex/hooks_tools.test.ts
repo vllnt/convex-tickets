@@ -405,13 +405,13 @@ describe("the agent tools", () => {
         claimSeq,
         resolution: "completed",
         result: { ok: true, ref: "re_301" },
-        body: "Refunded 49 EUR.",
+        body: "Refunded the amount.",
       }),
     );
     const done = present(await t.run((ctx) => support.get.handler(ctx, { ticketId })));
     expect(done.ticket).toMatchObject({ state: "resolved", resolution: "completed", result: { ok: true, ref: "re_301" } });
     expect(lab.isIn(done.ticket, "agent")).toBe(true);
-    expect(done.messages.map((message) => message.body)).toEqual(["which order?", "A-1042", "Refunded 49 EUR."]);
+    expect(done.messages.map((message) => message.body)).toEqual(["which order?", "A-1042", "Refunded the amount."]);
   });
 
   test("a tool call with a stale claim number gets CLAIM_LOST after the host reassigns the ticket", async () => {
