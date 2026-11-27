@@ -1,0 +1,44 @@
+# @vllnt/convex-tickets
+
+> Work items for Convex that humans and AI agents open, claim, discuss, hand off and resolve. One core, three thin layers: an agent board, a support desk and project tracking.
+
+`@vllnt/convex-tickets` is a publishable Convex component. A ticket (a "work item") has a queue, a named state mapped to one of six fixed categories, a holder with a claim number (the fence), an optional lease, blockers, a thread, a history and a scheduled host hook. Claims are atomic: of two racing callers exactly one wins. Requires `convex@^1.45.0` and uses `@convex-dev/rate-limiter` for open and message rate limits. 0.1.0 is a canary release (the `canary` tag only).
+
+For coding agents: this file, the API reference and the changelog are bundled in the npm package at `node_modules/@vllnt/convex-tickets/`, next to the source in `src/`. They match the installed version. Read them before writing code against this package.
+
+## Docs
+
+- [README](./README.md): What it is, installation, the refund example, the status model, guardrails, agent tools, the host hook and security
+- [API Reference](./docs/API.md): Package exports, `Tickets` methods, result unions, the `ticketEvent` payload, error codes and defaults
+- [Changelog](./CHANGELOG.md): Version history and release notes
+- [Contributing](https://github.com/vllnt/convex-tickets/blob/main/CONTRIBUTING.md): Development setup, validation commands, and release workflow notes
+
+## Source
+
+- [Client](./src/client/index.ts): The `Tickets` class, `defineQueue` and the result types
+- [Presets](./src/client/presets.ts): `agentQueue`, `deskQueue` and `projectQueue`
+- [Agent tools](./src/client/tools.ts): `ticketTools`, the eight tools bound to one party
+- [Shared](./src/shared.ts): Categories, transition types, `ERROR_CODES`, defaults and the `ticketEvent` payload
+
+## Examples
+
+These files are on GitHub `main` and may be newer than the installed version.
+
+- [Example queues](https://github.com/vllnt/convex-tickets/blob/main/example/convex/tickets.ts): An agent queue, a human queue, a desk queue and a project queue on one mount
+- [Example refund flow](https://github.com/vllnt/convex-tickets/blob/main/example/convex/example.ts): Open, claim, ask for input, hold on a blocker, hand off and resolve
+- [Example hook](https://github.com/vllnt/convex-tickets/blob/main/example/convex/hooks.ts): A host hook that records events and wakes a scripted agent
+- [Example tests](https://github.com/vllnt/convex-tickets/blob/main/example/convex/handoff_lifecycle.test.ts): End-to-end usage coverage with `convex-test`
+
+## Ecosystem
+
+- [vllnt oss](https://oss.vllnt.com/llms.txt): Index of the other vllnt open-source packages
+- [@vllnt/convex-api-keys](https://github.com/vllnt/convex-api-keys): The sibling component for API key management
+
+## Optional
+
+- [AGENTS](https://github.com/vllnt/convex-tickets/blob/main/AGENTS.md): Agent instructions for contributors to this repository
+- [Roadmap](https://github.com/vllnt/convex-tickets/blob/main/docs/ROADMAP.md): What is next, and the stop rule
+- [Design](https://github.com/vllnt/convex-tickets/blob/main/specs/active/2026-11-27-convex-tickets.md): The design this package is built from, with its gaps
+- [Security Policy](https://github.com/vllnt/convex-tickets/blob/main/SECURITY.md): Vulnerability reporting policy
+- [Code of Conduct](https://github.com/vllnt/convex-tickets/blob/main/CODE_OF_CONDUCT.md): Community participation guidelines
+- [License](./LICENSE): MIT license
