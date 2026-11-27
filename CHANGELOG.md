@@ -36,11 +36,15 @@ different backend runs the core unchanged on a different layer (see
 - **Guardrails.** Hop limit, ping-pong check, message cap, per-requester open
   cap, per-party rate limits (through `@convex-dev/rate-limiter`), blocker caps,
   idempotency keys on `open` and `reply`. Expected refusals are results; every
-  other failure is a coded `ConvexError` (`ERROR_CODES`, 32 codes).
+  other failure is a coded `ConvexError` (`ERROR_CODES`, 32 codes). A refusal
+  that does not escalate is recorded as a `guardrail_tripped` transition. The
+  graph limits (`maxBlockers`, `maxBlocked`, `maxGraphWalk`) have ceilings
+  (`LIMIT_CEILINGS`).
 - **Escalation.** `escalateTo` per queue, used by the hop limit, the ping-pong
   check, the message cap, repeated lease expiry and an optional due-time
-  escalation. A refused handoff or a reached message cap escalates a ticket once
-  (an `escalatedAt` guard).
+  escalation. Every automatic escalation (a refused handoff, a reached message
+  cap, repeated lease expiry, the due time) happens once per ticket (an
+  `escalatedAt` guard); the `escalate` call still works.
 - **Timers and retention.** Lease expiry, due time and seal timers, each one
   scheduled function that does nothing when its value no longer matches. A daily
   purge cron deletes sealed tickets older than `retentionMs` (off by default).

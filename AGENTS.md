@@ -68,7 +68,8 @@ specs/active/              # the design this package is built from
   `done`, `canceled`. Queues name their own states and map each to one category.
   A state never changes category once synced.
 - **A started ticket always has a holder.** Claim sets the holder. Release,
-  handoff, lease expiry and escalation clear it and raise `claimSeq`.
+  lease expiry, escalation and a handoff to a queue clear it; a handoff to a
+  party moves it to that party. Each raises `claimSeq`.
 - **Claim, lease and fence.** `claim` is one transaction, so exactly one of two
   racing callers wins. `claimSeq` is the fence: every holder write carries it,
   and a stale one gets `CLAIM_LOST`. A lease is optional per queue (`leaseMs`),
@@ -115,8 +116,8 @@ specs/active/              # the design this package is built from
   `@convex-dev/rate-limiter` (child component for open and message rate limits).
   Dev tooling: `@vllnt/eslint-config` (lint) and `@vllnt/typescript` (tsconfig
   base).
-- Not used, on purpose: `@vllnt/logger` (the component does not log),
-  `@vllnt/testing` (a Playwright E2E kit, not a fit for `convex-test`),
+- Not used, on purpose: `@vllnt/logger` (the component does not log), a private
+  Playwright end-to-end kit (not a fit for `convex-test`),
   `@vllnt/convex-helpers` (nothing it offers is needed), and
   `@convex-dev/workpool`, `@convex-dev/agent`, `@convex-dev/mcp` (the example is
   scripted; a host may add them). Do not add one without a current need.

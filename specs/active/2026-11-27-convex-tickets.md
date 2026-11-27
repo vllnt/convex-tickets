@@ -259,10 +259,15 @@ A `blocks` link from A to B means B cannot start until A is completed.
 - **Any other ending clears nothing.** If a blocker fails, is rejected or is
   canceled, each dependent gets a `blocker_failed` event. A held dependent that
   waits on blockers resumes at once so its holder can decide. An unheld one
-  stays blocked until the blocker is reopened or the link is removed.
+  stays blocked until the blocker is reopened or the link is removed. A new link
+  (`open` with `blockedBy`, `hold`, `link`) to a blocker that has already ended
+  without completing is refused with `INVALID_ARGUMENT`: it could never clear.
 - **Caps.** At most 20 blockers per ticket, and one ticket blocks at most 100.
   Adding a link walks the chain upstream to refuse a cycle (`CYCLE`). The walk
-  stops at 200 tickets (`GRAPH_TOO_DEEP`).
+  stops at 200 tickets (`GRAPH_TOO_DEEP`). These are the defaults and also the
+  ceilings (`LIMIT_CEILINGS`): `sync` refuses a higher value. Every read of
+  blocker links takes up to the ceiling, so lowering a limit later never hides a
+  link that exists; the lower value only stops new links past it.
 - **Parent and blocker are different things.** `parentId` means "part of".
   `blocks` means "must finish first". The refund's approval is both.
 - `hold` with a list of blockers adds the links and waits on them. The last
@@ -295,20 +300,20 @@ Agents write faster than people and do not get bored. Every limit below is a
 queue policy value or a mount limit with a default. All default numbers are
 starting guesses.
 
-| Guardrail                  | Default                                                             | When it trips                                                                                                |
-| -------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Hop limit                  | 6 handoffs per ticket                                               | `handoff` returns `HOP_LIMIT` and the ticket escalates (once, if the queue has `escalateTo`).                |
-| Ping-pong                  | A target that gave the ticket away twice in its last 50 transitions | `handoff` returns `PING_PONG`, then escalates as above.                                                      |
-| Message cap                | 200 messages per ticket                                             | `reply` returns `MESSAGE_LIMIT` and escalates as above. `requestInput` throws `MESSAGE_LIMIT`.               |
-| Rate limit per party       | 30 opens and 120 messages per minute                                | `RATE_LIMITED` with `retryAt`. Uses `@convex-dev/rate-limiter` as a child component. Messages: `reply` only. |
-| Open tickets per requester | 50 per queue                                                        | `TOO_MANY_OPEN`. Bounded index reads, no counter table.                                                      |
-| Blockers                   | 20 per ticket, 100 blocked per ticket                               | `TOO_MANY_BLOCKERS`, `TOO_MANY_BLOCKED`. A link that closes a cycle is `CYCLE`.                              |
-| Crash loop                 | 3 lease expiries, lease queues only                                 | The ticket escalates instead of returning to the same queue again.                                           |
-| Silent holder, no lease    | No automatic return                                                 | The due time emits `due_breached`. Escalation or `assign` moves the ticket.                                  |
-| Due time                   | Per queue, off by default                                           | Emits `due_breached` once. Escalates if `escalateOnDue` is true.                                             |
-| Stale holder               | Always on, with or without a lease                                  | A write with an old `claimSeq` is `CLAIM_LOST`.                                                              |
-| Visibility                 | Reads return public messages                                        | Internal notes only for `view: "internal"`.                                                                  |
-| Idempotency                | Optional key on `open` and `reply`                                  | A repeat returns the first id and writes nothing.                                                            |
+| Guardrail                  | Default                                                             | When it trips                                                                                                                                                    |
+| -------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hop limit                  | 6 handoffs per ticket                                               | `handoff` returns `HOP_LIMIT` and the ticket escalates (once, if the queue has `escalateTo`). Without an escalation the trip is recorded as `guardrail_tripped`. |
+| Ping-pong                  | A target that gave the ticket away twice in its last 50 transitions | `handoff` returns `PING_PONG`, then escalates as above.                                                                                                          |
+| Message cap                | 200 messages per ticket                                             | `reply` returns `MESSAGE_LIMIT` and escalates as above. `requestInput` and `resolve` with a body throw `MESSAGE_LIMIT`.                                          |
+| Rate limit per party       | 30 opens and 120 messages per minute                                | `RATE_LIMITED` with `retryAt`. Uses `@convex-dev/rate-limiter` as a child component. Messages: `reply`, `requestInput`, `resolve` with a body.                   |
+| Open tickets per requester | 50 per queue                                                        | `TOO_MANY_OPEN`, on `open` and `reopen`. Bounded index reads, no counter table.                                                                                  |
+| Blockers                   | 20 per ticket, 100 blocked per ticket (ceilings)                    | `TOO_MANY_BLOCKERS`, `TOO_MANY_BLOCKED`. A link that closes a cycle is `CYCLE`. A blocker that ended without completing is `INVALID_ARGUMENT`.                   |
+| Crash loop                 | 3 lease expiries, lease queues only                                 | The ticket escalates, once, instead of returning to the same queue again.                                                                                        |
+| Silent holder, no lease    | No automatic return                                                 | The due time emits `due_breached`. Escalation or `assign` moves the ticket.                                                                                      |
+| Due time                   | Per queue, off by default                                           | Emits `due_breached` once. Escalates if `escalateOnDue` is true and the ticket never escalated.                                                                  |
+| Stale holder               | Always on, with or without a lease                                  | A write with an old `claimSeq` is `CLAIM_LOST`.                                                                                                                  |
+| Visibility                 | Reads return public messages                                        | Internal notes only for `view: "internal"`.                                                                                                                      |
+| Idempotency                | Optional key on `open` and `reply`                                  | A repeat returns the first id and writes nothing.                                                                                                                |
 
 Escalation moves a ticket to the queue named in `escalateTo`. It lands
 `unstarted` with no holder, lowers the priority number by one (floor 0), raises
@@ -327,10 +332,14 @@ the need for a polling sweep.
 
 - **Lease expiry.** Returns the ticket to `unstarted` (`lease_expired`). A
   renewal reschedules it. After `maxReturns` expiries, and if the queue has
-  `escalateTo`, the ticket escalates instead.
+  `escalateTo` and the ticket never escalated, the ticket escalates instead. The
+  timer belongs to one lease row (it carries the lease id): a claim, resume or
+  handoff makes a new row, and the old timer ends when it fires. It does nothing
+  when the queue no longer has a lease.
 - **Due time.** Fixed at open (`dueInMs`). Emits `due_breached` once on a ticket
-  that is not done or canceled. The due time is a wall-clock deadline. A clock
-  that counts business hours belongs to the desk layer.
+  that is not done or canceled. A reopen sets the timer again when the ticket
+  has not breached. The due time is a wall-clock deadline. A clock that counts
+  business hours belongs to the desk layer.
 - **Seal.** When a ticket reaches `done` or `canceled`, the queue's
   `reopenWindowMs` decides: `0` seals at once, `null` never seals, otherwise a
   timer seals at the end of the window (default 7 days). A reopen before then
@@ -432,7 +441,7 @@ boolean or null), so there is no `v.any()`.
 - **Used:** `@vllnt/eslint-config` (lint), `@vllnt/typescript` (tsconfig base),
   `@convex-dev/rate-limiter` (child component for open and message rate limits).
 - **Not used:** `@vllnt/logger` (the component does not log; history and the
-  hook replace logs), `@vllnt/testing` (a Playwright E2E kit, not a fit for
+  hook replace logs), a private Playwright end-to-end kit (not a fit for
   `convex-test`), `@vllnt/convex-helpers` (nothing it offers is needed),
   `@convex-dev/workpool`, `@convex-dev/agent`, `@convex-dev/mcp` (the example is
   scripted; a host may add them).
@@ -571,13 +580,15 @@ is either a difference to confirm or work not done in 0.1.0.
   `{ refunded: boolean; refundId?: string }`. The typed client reads a field as
   `T | null | undefined`, because a reply and a handoff may write `null` to
   clear a field.
-- **Guardrail trips are results, and only an escalation leaves a row.** The
+- **Guardrail trips are results, and a trip that returns leaves a row.** The
   design says every trip is recorded as a transition. In the code a refused
-  handoff or a reached message cap in `reply` is a returned result. A transition
-  is written only when the ticket escalates, which needs `escalateTo`.
-  `RATE_LIMITED`, `TOO_MANY_OPEN` and the other thrown codes leave no row.
-- **`requestInput` throws at the message cap**, while `reply` returns a result.
-  The message rate limit applies to `reply` only.
+  handoff or a reached message cap in `reply` is a returned result. It writes an
+  `escalated` transition when the ticket escalates, and a `guardrail_tripped`
+  transition (the code and a short text as `reason`, no other change) when it
+  does not. `RATE_LIMITED`, `TOO_MANY_OPEN` and the other thrown codes leave no
+  row: the call rolls back.
+- **`requestInput` and `resolve` with a body throw at the message cap**, while
+  `reply` returns a result. The message rate limit applies to all three.
 - **`escalate` is a holder or trusted-host move.** The design says "system, or
   holder". The system escalates through timers and refusals; a direct call is
   made by the holder (with `claimSeq`) or by the host with `trusted`.

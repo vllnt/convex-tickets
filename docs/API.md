@@ -6,15 +6,15 @@
 
 ## Package exports
 
-| Import path                                          | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@vllnt/convex-tickets`                              | `Tickets` class; functions `defineQueue`, `toQueueDef`, `toValues`, `isTicketsError`; validators `ticketEvent` (a field map, for `args`), `ticketEventValidator`, `partyValidator`, `scalarValidator`, `scalarRecordValidator`; constants `CATEGORIES`, `TRANSITION_TYPES`, `ERROR_CODES`, `DEFAULT_POLICY`, `DEFAULT_LIMITS`, `DEFAULT_STATES`, `SYSTEM_PARTY`; types `TicketsOptions`, `EventHandler`, `TicketView`, `TicketDetail`, `TypedTicket`, `ClaimResult`, `ReplyResult`, `HandoffResult`, `MoveResult`, `ListFilter`, `Category`, `Limits`, `Party`, `PartyKind`, `Resolution`, `Scalar`, `ScalarRecord`, `TicketEvent`, `TicketsErrorCode`, `TicketsErrorData`, `TransitionType`, `Visibility`, `WaitingOn`, `AnyQueue`, `FieldSpec`, `FieldsSpec`, `FieldValues`, `PartialFieldValues`, `PolicyInput`, `QueueDefinition`, `QueueMap`, `StateName`, `StateSpec`, `StatesSpec`, `RunMutationCtx`, `RunQueryCtx` |
-| `@vllnt/convex-tickets/presets`                      | `agentQueue`, `deskQueue`, `projectQueue`, `DESK_STATES`, `PROJECT_STATES`; type `PresetOptions`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `@vllnt/convex-tickets/tools`                        | `ticketTools`, `TOOL_NAMES`; types `TicketTool`, `ToolBinding`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `@vllnt/convex-tickets/test`                         | `register(t, name = "tickets")` to mount the component and its rate-limiter child in `convex-test`, plus a default export `{ register, schema, modules }` (TypeScript source; needs Vite's `import.meta.glob`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `@vllnt/convex-tickets/convex.config` (`.js`)        | default: the component definition, passed to `app.use()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `@vllnt/convex-tickets/_generated/component` (`.js`) | type `ComponentApi` (the type of `components.tickets`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `@vllnt/convex-tickets/package.json`                 | the package manifest                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Import path                                          | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@vllnt/convex-tickets`                              | `Tickets` class; functions `defineQueue`, `toQueueDef`, `toValues`, `isTicketsError`; validators `ticketEvent` (a field map, for `args`), `ticketEventValidator`, `partyValidator`, `scalarValidator`, `scalarRecordValidator`; constants `CATEGORIES`, `TRANSITION_TYPES`, `ERROR_CODES`, `DEFAULT_POLICY`, `DEFAULT_LIMITS`, `LIMIT_CEILINGS`, `DEFAULT_STATES`, `SYSTEM_PARTY`; types `TicketsOptions`, `EventHandler`, `TicketView`, `TicketDetail`, `TypedTicket`, `ClaimResult`, `ReplyResult`, `HandoffResult`, `MoveResult`, `ListFilter`, `Category`, `Limits`, `Party`, `PartyKind`, `Resolution`, `Scalar`, `ScalarRecord`, `TicketEvent`, `TicketsErrorCode`, `TicketsErrorData`, `TransitionType`, `Visibility`, `WaitingOn`, `AnyQueue`, `FieldSpec`, `FieldsSpec`, `FieldValues`, `PartialFieldValues`, `PolicyInput`, `QueueDefinition`, `QueueMap`, `StateName`, `StateSpec`, `StatesSpec`, `RunMutationCtx`, `RunQueryCtx` |
+| `@vllnt/convex-tickets/presets`                      | `agentQueue`, `deskQueue`, `projectQueue`, `DESK_STATES`, `PROJECT_STATES`; type `PresetOptions`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `@vllnt/convex-tickets/tools`                        | `ticketTools`, `TOOL_NAMES`; types `TicketTool`, `ToolBinding`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `@vllnt/convex-tickets/test`                         | `register(t, name = "tickets")` to mount the component and its rate-limiter child in `convex-test`, plus a default export `{ register, schema, modules }` (TypeScript source; needs Vite's `import.meta.glob`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `@vllnt/convex-tickets/convex.config` (`.js`)        | default: the component definition, passed to `app.use()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `@vllnt/convex-tickets/_generated/component` (`.js`) | type `ComponentApi` (the type of `components.tickets`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `@vllnt/convex-tickets/package.json`                 | the package manifest                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 `RunMutationCtx` is any context with `runMutation` and `runQuery` (mutation or
 action). `RunQueryCtx` is any context with `runQuery`.
@@ -105,8 +105,11 @@ A queue that declares its own states must cover `unstarted`, `started`, `done`
 and `canceled`. `backlog` and `waiting` are optional. A verb that needs a
 category the queue lacks throws `NO_LANDING_STATE`.
 
-Field values are scalars: string, number, boolean or `null`. Nested data and
-lists do not fit; keep them in a file or a host table and link them.
+Field values are scalars: a string, a finite number, a boolean or `null`. Nested
+data and lists do not fit; keep them in a file or a host table and link them.
+The client throws `INVALID_FIELD` for any other value in `fields` or `result`
+(it does not drop it), and leaves a key set to `undefined` unset. A field or
+result key must be non-empty printable ASCII and must not start with `$` or `_`.
 
 | Policy key            | Type             | Default (`DEFAULT_POLICY`) | Meaning                                                                             |
 | --------------------- | ---------------- | -------------------------- | ----------------------------------------------------------------------------------- |
@@ -134,10 +137,15 @@ component. Run once per deploy from an internal mutation.
 - A bad definition throws `INVALID_QUEUE`: unsupported queue name (letters,
   digits, `_ : . -` and spaces, starting with a letter or digit), an empty or
   repeated state name, `on` on a non-waiting state, a missing required category,
-  an empty or repeated field key, an enum without options (or options on a
-  non-enum), a negative or non-finite policy number, `leaseMs: 0`, an
-  `escalateTo` that is the queue itself or is not a defined queue, or two queues
-  with one name.
+  a repeated field or result key, or one that Convex cannot store as a record
+  key (it must be non-empty printable ASCII, 0x20 to 0x7E, and must not start
+  with `$` or `_`), an enum without options (or options on a non-enum), a
+  negative or non-finite policy number, `leaseMs: 0`, an `escalateTo` that is
+  the queue itself or is not a defined queue, or two queues with one name.
+- `leaseMs` cannot switch between a number and `null` while the queue has a
+  `started` ticket (`INVALID_QUEUE`): a ticket started without a lease would
+  never expire, and a leased one would lose its way back. Changing the length of
+  a lease is allowed. With no ticket started, either switch is allowed.
 - `escalateTo` may name a queue that this call does not list, if it was synced
   before.
 - Queues missing from the call are left as they are.
@@ -146,7 +154,8 @@ component. Run once per deploy from an internal mutation.
   place with the same options. Each changed queue raises its `schemaVersion` by
   one.
 - `limits` values must be positive integers and `retentionMs` a positive finite
-  number, else `INVALID_ARGUMENT`.
+  number, else `INVALID_ARGUMENT`. `maxBlockers`, `maxBlocked` and
+  `maxGraphWalk` must also be at most their `LIMIT_CEILINGS` (20, 100 and 200).
 
 ## Methods
 
@@ -175,7 +184,9 @@ timer if the queue has `dueInMs`, and schedules the hook.
 
 Per-party rate limit (`opensPerMinute`) and the per-requester cap
 (`maxOpenPerRequester`) apply. The idempotency key is scoped to the requester
-across the whole mount, not to one queue.
+across the whole mount, not to one queue. A `blockedBy` ticket that already
+ended without completing (`failed`, `rejected` or `canceled`) throws
+`INVALID_ARGUMENT`, since it can never clear.
 
 ### get(ctx, { ticketId, view?, queue? })
 
@@ -293,8 +304,10 @@ with `on: "requester"`, else one with no `on`. `fields` names queue fields the
 requester should supply; an undeclared key throws `UNKNOWN_FIELD`. The names are
 stored on the message as `requestedFields`.
 
-Throws `MESSAGE_LIMIT` when the ticket already has `maxMessages` messages.
-**Returns:** `{ queue, state, category: "waiting", claimSeq, messageId }`.
+Throws `MESSAGE_LIMIT` when the ticket already has `maxMessages` messages, and
+`RATE_LIMITED` when the party is over `messagesPerMinute`. Either way nothing
+changes. **Returns:**
+`{ queue, state, category: "waiting", claimSeq, messageId }`.
 
 ### reply(ctx, { ticketId, actor, body, visibility?, fields?, idempotencyKey?, queue? })
 
@@ -309,9 +322,12 @@ Add a message to the thread. `visibility` is `"public"` (default) or
   work. Supplying `fields` there throws `FIELDS_NOT_ACCEPTED`.
 - A repeated `idempotencyKey` on the same ticket returns the first message's id
   with `duplicate: true` and writes nothing.
-- A per-party rate limit (`messagesPerMinute`) applies to `reply` only.
+- A per-party rate limit (`messagesPerMinute`) applies to `reply`,
+  `requestInput` and `resolve` with a `body`.
 - At `maxMessages` the reply is refused with a result (not a throw), and the
-  ticket escalates once if its queue has `escalateTo`.
+  ticket escalates once if its queue has `escalateTo`. When it does not escalate
+  (no `escalateTo`, already escalated, or the ticket is `done` or `canceled`),
+  the refusal is recorded as a `guardrail_tripped` transition.
 
 **Returns:** `ReplyResult`. See [Result unions](#result-unions).
 
@@ -326,8 +342,11 @@ holder and loses its lease.
 - Otherwise it waits on something external (`waitingOn: "external"`) until
   `resume`.
 
-If it would wait on blockers but none is open, it throws `NOT_BLOCKED`. The last
-blocker completing resumes the ticket by itself. **Returns:** `MoveResult`.
+If it would wait on blockers but none is open, it throws `NOT_BLOCKED`. A
+blocker that already ended without completing (`failed`, `rejected` or
+`canceled`) throws `INVALID_ARGUMENT`, since it can never clear; a completed
+blocker is accepted and does not count as open. The last blocker completing
+resumes the ticket by itself. **Returns:** `MoveResult`.
 
 ### resume(ctx, { ticketId, actor, claimSeq?, trusted?, to?, reason? })
 
@@ -347,7 +366,9 @@ Pass a `started` ticket on. Needs `toQueue`, `toParty` or both, else
 - Refused with a result when `hopCount` has reached `maxHops` (`HOP_LIMIT`), or
   when the target (the queue, or the party if `toParty` is set) already gave
   this ticket away twice in its last 50 transitions (`PING_PONG`). The ticket
-  then escalates once, if its queue has `escalateTo`.
+  then escalates once, if its queue has `escalateTo`. When it does not escalate
+  (no `escalateTo`, or already escalated), the refusal is recorded as a
+  `guardrail_tripped` transition and the ticket does not change.
 
 **Returns:** `HandoffResult`.
 
@@ -355,8 +376,10 @@ Pass a `started` ticket on. Needs `toQueue`, `toParty` or both, else
 
 Finish a `started` ticket. `resolution` is `completed`, `failed` or `rejected`.
 `result` is checked against the queue's result fields. Required result keys are
-enforced only for `completed`. `body` is added as a public message. `to` picks a
-`done` state (default: the first).
+enforced only for `completed`. `body` is added as a public message; like `reply`
+it counts against `maxMessages` (`MESSAGE_LIMIT`) and the `messagesPerMinute`
+rate limit (`RATE_LIMITED`), and a refusal changes nothing, so resolve without a
+`body` to finish anyway. `to` picks a `done` state (default: the first).
 
 `completed` clears this ticket from every ticket it blocks. Any other resolution
 clears nothing and emits `blocker_failed` to each dependent. After the move, the
@@ -368,7 +391,10 @@ seals at the end of the window. **Returns:** `MoveResult`.
 Reopen a `done` or `canceled` ticket before it is sealed. The requester, or
 `trusted`. The ticket lands `unstarted` (or `to`) with no holder. Resolution,
 result and end times are cleared. If it had completed, every ticket it blocks
-counts it as open again. **Returns:** `MoveResult`.
+counts it as open again. The ticket counts against `maxOpenPerRequester` for its
+requester again (`TOO_MANY_OPEN`). If it has a due time that has not breached,
+the due timer is set again, at the due time or now if that has passed.
+**Returns:** `MoveResult`.
 
 ### close(ctx, { ticketId, actor })
 
@@ -390,6 +416,12 @@ target queue with no holder, its priority number drops by one (floor `0`), and
 apply. Throws `NO_ESCALATION` when the queue has no `escalateTo`. **Returns:**
 `MoveResult`.
 
+This call always works. Automatic escalation (the hop limit, the ping-pong
+check, the message cap, repeated lease expiry and `escalateOnDue`) happens once
+per ticket: when `escalatedAt` is already set, a lease expiry returns the ticket
+to the queue it is in (`lease_expired`), a due time only emits `due_breached`,
+and a refusal is recorded as `guardrail_tripped`.
+
 ### link(ctx, { ticketId, actor, relation, toTicketId?, refKind?, ref?, label? })
 
 Add a link. **Returns:** the link id (`string`). A link that already exists is
@@ -404,12 +436,19 @@ returned, not added twice.
 A `blocks` link checks the caps (`TOO_MANY_BLOCKERS`, `TOO_MANY_BLOCKED`) and
 walks the chain upstream to refuse a cycle (`CYCLE`, or `GRAPH_TOO_DEEP` past
 `maxGraphWalk`). It raises the blocked ticket's `openBlockers` when the blocker
-is not completed.
+is not completed. A blocker that already ended without completing (`failed`,
+`rejected` or `canceled`) throws `INVALID_ARGUMENT`, since it can never clear.
+
+A link needs a ticket that is not sealed: `link` throws `SEALED` when `ticketId`
+is sealed, and for `blocks` also when `toTicketId` is. A `relates` or
+`duplicates` link from an active ticket to a sealed one is allowed.
 
 ### unlink(ctx, { linkId })
 
 Remove a link. **Returns:** `null`. Removing a `blocks` link keeps the blocked
-ticket's counter exact, and may release it (`unblocked` or `resumed`).
+ticket's counter exact, and may release it (`unblocked` or `resumed`). Throws
+`SEALED` when the link's owner (`ticketId`) is sealed, or, for a `blocks` link,
+when the blocked ticket is. The retention purge does not go through `unlink`.
 
 ### isIn(ticket, queue)
 
@@ -464,6 +503,12 @@ type MoveResult = {
 `MoveResult` says where the ticket is after the move. `resolve` returns the
 state after any immediate seal.
 
+A refusal that does not escalate writes one `guardrail_tripped` transition, and
+one event, with the code and a short text as `reason` and the caller as the
+actor. Nothing else on the ticket changes, and `claimSeq` stays. A caller that
+retries a refused call writes one more row and event each time. Refusals that
+throw (`RATE_LIMITED`, `TOO_MANY_OPEN`) cannot be recorded: the call rolls back.
+
 ## The ticketEvent payload
 
 The component schedules the host's `onEvent` function after every transition
@@ -508,27 +553,28 @@ transition, `seq` 1 to 7, and they arrived as `opened` (1), `input_requested`
 
 ### Transition types
 
-| `type`            | Emitted when                                                                                                  |
-| ----------------- | ------------------------------------------------------------------------------------------------------------- |
-| `opened`          | `open`                                                                                                        |
-| `moved`           | `move`                                                                                                        |
-| `assigned`        | `assign` changed the assignee                                                                                 |
-| `claimed`         | `claim` won                                                                                                   |
-| `released`        | `release`                                                                                                     |
-| `lease_expired`   | A lease ran out and the ticket returned to its queue                                                          |
-| `handed_off`      | `handoff` succeeded                                                                                           |
-| `input_requested` | `requestInput`                                                                                                |
-| `input_provided`  | The requester answered an input request with `reply`                                                          |
-| `held`            | `hold`                                                                                                        |
-| `resumed`         | `resume`, the last blocker completing, or a blocker ending without completing on a ticket waiting on blockers |
-| `unblocked`       | The last open blocker of an `unstarted` or `backlog` ticket completed or was unlinked                         |
-| `blocker_failed`  | A blocker of this ticket ended as `failed`, `rejected` or `canceled`. Nothing is cleared                      |
-| `resolved`        | `resolve`                                                                                                     |
-| `reopened`        | `reopen`                                                                                                      |
-| `closed`          | The ticket was sealed: by `close`, by the seal timer, or at once when `reopenWindowMs` is `0`                 |
-| `canceled`        | `cancel`                                                                                                      |
-| `escalated`       | The ticket moved to its `escalateTo` queue                                                                    |
-| `due_breached`    | The due time passed on a ticket that was not done or canceled. Emitted once                                   |
+| `type`              | Emitted when                                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `opened`            | `open`                                                                                                                                                       |
+| `moved`             | `move`                                                                                                                                                       |
+| `assigned`          | `assign` changed the assignee                                                                                                                                |
+| `claimed`           | `claim` won                                                                                                                                                  |
+| `released`          | `release`                                                                                                                                                    |
+| `lease_expired`     | A lease ran out and the ticket returned to its queue                                                                                                         |
+| `handed_off`        | `handoff` succeeded                                                                                                                                          |
+| `input_requested`   | `requestInput`                                                                                                                                               |
+| `input_provided`    | The requester answered an input request with `reply`                                                                                                         |
+| `held`              | `hold`                                                                                                                                                       |
+| `resumed`           | `resume`, the last blocker completing, or a blocker ending without completing on a ticket waiting on blockers                                                |
+| `unblocked`         | The last open blocker of an `unstarted` or `backlog` ticket completed or was unlinked                                                                        |
+| `blocker_failed`    | A blocker of this ticket ended as `failed`, `rejected` or `canceled`. Nothing is cleared                                                                     |
+| `resolved`          | `resolve`                                                                                                                                                    |
+| `reopened`          | `reopen`                                                                                                                                                     |
+| `closed`            | The ticket was sealed: by `close`, by the seal timer, or at once when `reopenWindowMs` is `0`                                                                |
+| `canceled`          | `cancel`                                                                                                                                                     |
+| `escalated`         | The ticket moved to its `escalateTo` queue                                                                                                                   |
+| `due_breached`      | The due time passed on a ticket that was not done or canceled. Emitted once                                                                                  |
+| `guardrail_tripped` | A handoff (`HOP_LIMIT`, `PING_PONG`) or a `reply` (`MESSAGE_LIMIT`) was refused and did not escalate. `reason` is the code and a short text. No other change |
 
 ## Allowed moves and who may make them
 
@@ -574,40 +620,40 @@ try {
 
 `ERROR_CODES` lists every code:
 
-| Code                     | Thrown when                                                                                                                                                                                                                                                                                                                      |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `INVALID_ARGUMENT`       | A bad argument: empty `title`, `priority` not an integer 0 to 4, `claim` with no `ticketId` or `queue`, `handoff` with no target, a holder move without `claimSeq` that is not `trusted`, a malformed `link`, `list` with both `state` and `category`, a bad `search` limit, or a bad `sync` limit, `retentionMs` or hook handle |
-| `INVALID_QUEUE`          | `sync` got a bad queue definition (see `sync`)                                                                                                                                                                                                                                                                                   |
-| `STATE_CATEGORY_CHANGED` | `sync` tried to move an existing state to another category                                                                                                                                                                                                                                                                       |
-| `STATE_IN_USE`           | `sync` tried to drop a state that still has tickets                                                                                                                                                                                                                                                                              |
-| `FIELD_CHANGED`          | `sync` tried to remove a field, change its type, or remove an enum option                                                                                                                                                                                                                                                        |
-| `UNKNOWN_QUEUE`          | The queue was never written by `sync`                                                                                                                                                                                                                                                                                            |
-| `UNKNOWN_STATE`          | A `to` or `move` target is not a state of the queue                                                                                                                                                                                                                                                                              |
-| `INVALID_TARGET`         | A `to` names a state in the wrong category for the move, a waiting state that does not fit `waitingOn`, or `open` with `to` outside `unstarted` and `backlog`                                                                                                                                                                    |
-| `NO_LANDING_STATE`       | The queue has no state in the category the move needs, such as no waiting state for `requestInput`                                                                                                                                                                                                                               |
-| `UNKNOWN_FIELD`          | A field or result key the queue does not declare, or a `requestInput` field it does not declare                                                                                                                                                                                                                                  |
-| `INVALID_FIELD`          | A field value of the wrong type, an enum value outside `options`, or a non-finite number                                                                                                                                                                                                                                         |
-| `MISSING_FIELD`          | A required field is missing or `null` (at `open`, or in a `completed` result)                                                                                                                                                                                                                                                    |
-| `TOO_MANY_FIELDS`        | A fields or result record has more than `maxFields` keys                                                                                                                                                                                                                                                                         |
-| `TOO_LONG`               | A string is over its cap: `maxStringChars` for titles, field strings, reasons and link parts, `maxBodyChars` for bodies                                                                                                                                                                                                          |
-| `FIELDS_NOT_ACCEPTED`    | `reply` carried fields from anyone but the requester answering an input request                                                                                                                                                                                                                                                  |
-| `NOT_FOUND`              | A ticket, parent, blocker or link id does not exist                                                                                                                                                                                                                                                                              |
-| `WRONG_QUEUE`            | The `queue` argument does not match the ticket's queue                                                                                                                                                                                                                                                                           |
-| `INVALID_MOVE`           | The ticket is in a category the verb does not accept, or `move` crosses categories                                                                                                                                                                                                                                               |
-| `SEALED`                 | The ticket is closed and takes no more writes                                                                                                                                                                                                                                                                                    |
-| `CLAIM_LOST`             | The `claimSeq` is stale, or the lease of a started ticket expired                                                                                                                                                                                                                                                                |
-| `NOT_HOLDER`             | The caller is not the holder                                                                                                                                                                                                                                                                                                     |
-| `NOT_REQUESTER`          | `cancel` or `reopen` by someone who is not the requester and not `trusted`                                                                                                                                                                                                                                                       |
-| `HOLDER_REQUIRED`        | `assign` with `null` on a `started` or `waiting` ticket                                                                                                                                                                                                                                                                          |
-| `NOT_BLOCKED`            | `hold` on blockers when every blocker is already completed                                                                                                                                                                                                                                                                       |
-| `NO_ESCALATION`          | `escalate` on a queue with no `escalateTo`                                                                                                                                                                                                                                                                                       |
-| `CYCLE`                  | A `blocks` link would close a cycle, or a ticket would block itself                                                                                                                                                                                                                                                              |
-| `GRAPH_TOO_DEEP`         | The upstream walk for the cycle check passed `maxGraphWalk` tickets                                                                                                                                                                                                                                                              |
-| `TOO_MANY_BLOCKERS`      | A ticket already has `maxBlockers` blockers                                                                                                                                                                                                                                                                                      |
-| `TOO_MANY_BLOCKED`       | A blocker already blocks `maxBlocked` tickets                                                                                                                                                                                                                                                                                    |
-| `TOO_MANY_OPEN`          | The requester already has `maxOpenPerRequester` active tickets in the queue                                                                                                                                                                                                                                                      |
-| `RATE_LIMITED`           | A party is over `opensPerMinute` (`open`) or `messagesPerMinute` (`reply`). `retryAt` says when to retry                                                                                                                                                                                                                         |
-| `MESSAGE_LIMIT`          | `requestInput` on a ticket that already has `maxMessages` messages. (`reply` returns this as a result)                                                                                                                                                                                                                           |
+| Code                     | Thrown when                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INVALID_ARGUMENT`       | A bad argument: empty `title`, `priority` not an integer 0 to 4, `claim` with no `ticketId` or `queue`, `handoff` with no target, a holder move without `claimSeq` that is not `trusted`, a malformed `link`, a `blocks` blocker (`open`, `hold`, `link`) that ended without completing, `list` with both `state` and `category`, a bad `search` limit, or a bad `sync` limit, `retentionMs` or hook handle |
+| `INVALID_QUEUE`          | `sync` got a bad queue definition (see `sync`)                                                                                                                                                                                                                                                                                                                                                              |
+| `STATE_CATEGORY_CHANGED` | `sync` tried to move an existing state to another category                                                                                                                                                                                                                                                                                                                                                  |
+| `STATE_IN_USE`           | `sync` tried to drop a state that still has tickets                                                                                                                                                                                                                                                                                                                                                         |
+| `FIELD_CHANGED`          | `sync` tried to remove a field, change its type, or remove an enum option                                                                                                                                                                                                                                                                                                                                   |
+| `UNKNOWN_QUEUE`          | The queue was never written by `sync`                                                                                                                                                                                                                                                                                                                                                                       |
+| `UNKNOWN_STATE`          | A `to` or `move` target is not a state of the queue                                                                                                                                                                                                                                                                                                                                                         |
+| `INVALID_TARGET`         | A `to` names a state in the wrong category for the move, a waiting state that does not fit `waitingOn`, or `open` with `to` outside `unstarted` and `backlog`                                                                                                                                                                                                                                               |
+| `NO_LANDING_STATE`       | The queue has no state in the category the move needs, such as no waiting state for `requestInput`                                                                                                                                                                                                                                                                                                          |
+| `UNKNOWN_FIELD`          | A field or result key the queue does not declare, or a `requestInput` field it does not declare                                                                                                                                                                                                                                                                                                             |
+| `INVALID_FIELD`          | A field value of the wrong type, an enum value outside `options`, a non-finite number, or (in the client) a value that is not a string, number, boolean or null                                                                                                                                                                                                                                             |
+| `MISSING_FIELD`          | A required field is missing or `null` (at `open`, or in a `completed` result)                                                                                                                                                                                                                                                                                                                               |
+| `TOO_MANY_FIELDS`        | A fields or result record has more than `maxFields` keys                                                                                                                                                                                                                                                                                                                                                    |
+| `TOO_LONG`               | A string is over its cap: `maxStringChars` for titles, field strings, reasons and link parts, `maxBodyChars` for bodies                                                                                                                                                                                                                                                                                     |
+| `FIELDS_NOT_ACCEPTED`    | `reply` carried fields from anyone but the requester answering an input request                                                                                                                                                                                                                                                                                                                             |
+| `NOT_FOUND`              | A ticket, parent, blocker or link id does not exist                                                                                                                                                                                                                                                                                                                                                         |
+| `WRONG_QUEUE`            | The `queue` argument does not match the ticket's queue                                                                                                                                                                                                                                                                                                                                                      |
+| `INVALID_MOVE`           | The ticket is in a category the verb does not accept, or `move` crosses categories                                                                                                                                                                                                                                                                                                                          |
+| `SEALED`                 | The ticket is closed and takes no more writes. `link` and `unlink` also refuse a link whose owner, or for `blocks` whose blocked ticket, is closed                                                                                                                                                                                                                                                          |
+| `CLAIM_LOST`             | The `claimSeq` is stale, or the lease of a started ticket expired                                                                                                                                                                                                                                                                                                                                           |
+| `NOT_HOLDER`             | The caller is not the holder                                                                                                                                                                                                                                                                                                                                                                                |
+| `NOT_REQUESTER`          | `cancel` or `reopen` by someone who is not the requester and not `trusted`                                                                                                                                                                                                                                                                                                                                  |
+| `HOLDER_REQUIRED`        | `assign` with `null` on a `started` or `waiting` ticket                                                                                                                                                                                                                                                                                                                                                     |
+| `NOT_BLOCKED`            | `hold` on blockers when every blocker is already completed                                                                                                                                                                                                                                                                                                                                                  |
+| `NO_ESCALATION`          | `escalate` on a queue with no `escalateTo`                                                                                                                                                                                                                                                                                                                                                                  |
+| `CYCLE`                  | A `blocks` link would close a cycle, or a ticket would block itself                                                                                                                                                                                                                                                                                                                                         |
+| `GRAPH_TOO_DEEP`         | The upstream walk for the cycle check passed `maxGraphWalk` tickets                                                                                                                                                                                                                                                                                                                                         |
+| `TOO_MANY_BLOCKERS`      | A ticket already has `maxBlockers` blockers                                                                                                                                                                                                                                                                                                                                                                 |
+| `TOO_MANY_BLOCKED`       | A blocker already blocks `maxBlocked` tickets                                                                                                                                                                                                                                                                                                                                                               |
+| `TOO_MANY_OPEN`          | `open` or `reopen` when the requester already has `maxOpenPerRequester` active tickets in the queue                                                                                                                                                                                                                                                                                                         |
+| `RATE_LIMITED`           | A party is over `opensPerMinute` (`open`) or `messagesPerMinute` (`reply`, `requestInput`, or `resolve` with a `body`). `retryAt` says when to retry                                                                                                                                                                                                                                                        |
+| `MESSAGE_LIMIT`          | `requestInput`, or `resolve` with a `body`, on a ticket that already has `maxMessages` messages. (`reply` returns this as a result)                                                                                                                                                                                                                                                                         |
 
 `TAKEN`, `BLOCKED`, `RESERVED`, `EMPTY`, `NOT_CLAIMABLE`, `HOP_LIMIT` and
 `PING_PONG` are result reasons, not error codes.
@@ -644,12 +690,21 @@ DEFAULT_LIMITS = {
   opensPerMinute: 30,
   messagesPerMinute: 120,
 };
+
+LIMIT_CEILINGS = {
+  maxBlockers: 20,
+  maxBlocked: 100,
+  maxGraphWalk: 200,
+};
 ```
 
 `DEFAULT_LIMITS` are mount-wide and set through `new Tickets(..., { limits })`
-and `sync`. Rate limits are token buckets per party with a burst equal to the
-rate. `priority` runs from 0 (urgent) to 4 and defaults to 2. `dueInMs` has no
-default (no due time), and a ticket's `dueAt` is fixed at open.
+and `sync`. The three graph limits cannot go above `LIMIT_CEILINGS` (`sync`
+throws `INVALID_ARGUMENT`). Every read of blocker links takes up to the ceiling,
+so lowering a limit later never hides a link that exists: the lower value only
+stops new links past it. Rate limits are token buckets per party with a burst
+equal to the rate. `priority` runs from 0 (urgent) to 4 and defaults to 2.
+`dueInMs` has no default (no due time), and a ticket's `dueAt` is fixed at open.
 
 ## Presets
 
@@ -730,12 +785,17 @@ Each timer is one scheduled function set when its deadline is known. It compares
 the value it was scheduled for with the ticket and does nothing if they differ,
 so it is safe to run twice.
 
-| Timer        | Set when                                                           | When it fires                                                                                                                                                                                                                   |
-| ------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Lease expiry | A lease starts (claim, assign, resume, handoff to a party)         | If the claim is unchanged and the lease has run out, the ticket returns to `unstarted` (`lease_expired`). After `maxReturns` expiries, and if the queue has `escalateTo`, it escalates instead. A renewal reschedules           |
-| Due time     | `open`, when the queue has `dueInMs`                               | Emits `due_breached` once on a ticket that is not done or canceled. Escalates when `escalateOnDue` is true                                                                                                                      |
-| Seal         | A ticket reaches `done` or `canceled` with a reopen window above 0 | Seals the ticket (`closed`), unless it was reopened since                                                                                                                                                                       |
-| Retention    | A daily cron (`tickets:purge`)                                     | With `retentionMs` set, deletes sealed tickets older than that with their messages, history and links, in batches of 200 rows, rescheduling itself until none is left. Off by default. A queue that never seals is never purged |
+| Timer        | Set when                                                                                                                                                | When it fires                                                                                                                                                                                                                                        |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lease expiry | A lease starts (claim, assign, a move into `started`, a handoff to a party, or a resume: `resume`, a requester `reply`, or the last blocker completing) | If the claim is unchanged and the lease has run out, the ticket returns to `unstarted` (`lease_expired`). After `maxReturns` expiries, and if the queue has `escalateTo` and the ticket never escalated, it escalates instead. A renewal reschedules |
+| Due time     | `open`, when the queue has `dueInMs`; `reopen`, if it has not breached                                                                                  | Emits `due_breached` once on a ticket that is not done or canceled. Escalates when `escalateOnDue` is true and the ticket never escalated                                                                                                            |
+| Seal         | A ticket reaches `done` or `canceled` with a reopen window above 0                                                                                      | Seals the ticket (`closed`), unless it was reopened since                                                                                                                                                                                            |
+| Retention    | A daily cron (`tickets:purge`)                                                                                                                          | With `retentionMs` set, deletes sealed tickets older than that with their messages, history and links, in batches of 200 rows, rescheduling itself until none is left. Off by default. A queue that never seals is never purged                      |
+
+A lease timer belongs to one lease row: a renewal keeps the row, so its timer
+carries on, but a claim, resume or handoff makes a new row and the old timer
+ends when it fires. A queue whose `leaseMs` became `null` makes the timer do
+nothing.
 
 A queue without a lease sets no lease row and no lease timer. Nothing takes a
 ticket back from a holder who went silent there. The due time, escalation and
