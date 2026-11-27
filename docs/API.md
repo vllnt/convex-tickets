@@ -186,7 +186,8 @@ Per-party rate limit (`opensPerMinute`) and the per-requester cap
 (`maxOpenPerRequester`) apply. The idempotency key is scoped to the requester
 across the whole mount, not to one queue. A `blockedBy` ticket that already
 ended without completing (`failed`, `rejected` or `canceled`) throws
-`INVALID_ARGUMENT`, since it can never clear.
+`INVALID_ARGUMENT`, since it can never clear. A sealed blocker throws `SEALED`,
+even a completed one.
 
 ### get(ctx, { ticketId, view?, queue? })
 
@@ -344,9 +345,9 @@ holder and loses its lease.
 
 If it would wait on blockers but none is open, it throws `NOT_BLOCKED`. A
 blocker that already ended without completing (`failed`, `rejected` or
-`canceled`) throws `INVALID_ARGUMENT`, since it can never clear; a completed
-blocker is accepted and does not count as open. The last blocker completing
-resumes the ticket by itself. **Returns:** `MoveResult`.
+`canceled`) throws `INVALID_ARGUMENT`, since it can never clear (`SEALED` once
+it is sealed); a completed blocker is accepted and does not count as open. The
+last blocker completing resumes the ticket by itself. **Returns:** `MoveResult`.
 
 ### resume(ctx, { ticketId, actor, claimSeq?, trusted?, to?, reason? })
 
@@ -437,7 +438,8 @@ A `blocks` link checks the caps (`TOO_MANY_BLOCKERS`, `TOO_MANY_BLOCKED`) and
 walks the chain upstream to refuse a cycle (`CYCLE`, or `GRAPH_TOO_DEEP` past
 `maxGraphWalk`). It raises the blocked ticket's `openBlockers` when the blocker
 is not completed. A blocker that already ended without completing (`failed`,
-`rejected` or `canceled`) throws `INVALID_ARGUMENT`, since it can never clear.
+`rejected` or `canceled`) throws `INVALID_ARGUMENT`, since it can never clear. A
+sealed blocker throws `SEALED` instead, even a completed one.
 
 A link needs a ticket that is not sealed: `link` throws `SEALED` when `ticketId`
 is sealed, and for `blocks` also when `toTicketId` is. `open` with `blockedBy`
@@ -645,7 +647,7 @@ try {
 | `NOT_FOUND`              | A ticket, parent, blocker or link id does not exist                                                                                                                                                                                                                                                                                                                                                         |
 | `WRONG_QUEUE`            | The `queue` argument does not match the ticket's queue                                                                                                                                                                                                                                                                                                                                                      |
 | `INVALID_MOVE`           | The ticket is in a category the verb does not accept, or `move` crosses categories                                                                                                                                                                                                                                                                                                                          |
-| `SEALED`                 | The ticket is closed and takes no more writes. `link`, `open` (`blockedBy`) and `hold` (`blockers`) also refuse a sealed blocker; `unlink` refuses a link whose owner, or for `blocks` whose blocked ticket, is closed                                                                                                                                                                                      |
+| `SEALED`                 | The ticket is closed and takes no more writes. `link`, `open` (`blockedBy`) and `hold` (`blockers`) also refuse a sealed blocker; `unlink` refuses a link whose owner is closed, and a `blocks` link only when its blocked ticket is closed                                                                                                                                                                 |
 | `CLAIM_LOST`             | The `claimSeq` is stale, or the lease of a started ticket expired                                                                                                                                                                                                                                                                                                                                           |
 | `NOT_HOLDER`             | The caller is not the holder                                                                                                                                                                                                                                                                                                                                                                                |
 | `NOT_REQUESTER`          | `cancel` or `reopen` by someone who is not the requester and not `trusted`                                                                                                                                                                                                                                                                                                                                  |

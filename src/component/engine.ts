@@ -565,6 +565,7 @@ async function assertNoCycle(env: Env, blockerId: Id<"tickets">, blockedId: Id<"
  * @param options - `isNew` skips the cycle walk for a ticket that blocks nothing yet.
  * @returns The new link id, and whether the blocker still counts as open.
  * @throws `NOT_FOUND` when the blocker does not exist.
+ * @throws `SEALED` when the blocker is sealed (closed), even a completed one.
  * @throws `TOO_MANY_BLOCKERS` or `TOO_MANY_BLOCKED` when a blocker cap would be passed.
  * @throws `INVALID_ARGUMENT` when the blocker ended without completing, so it can never clear.
  * @throws `CYCLE` or `GRAPH_TOO_DEEP` when the walk finds a cycle, or the blocker chain is too long to check.

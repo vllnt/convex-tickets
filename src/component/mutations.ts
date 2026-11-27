@@ -264,6 +264,7 @@ export const sync = mutation({
  * @throws `UNKNOWN_QUEUE` when the queue was never synced.
  * @throws `NOT_FOUND` when the parent or a blocker does not exist.
  * @throws `INVALID_ARGUMENT` when the title is empty, `priority` is not an integer from 0 to 4, or a blocker ended without completing.
+ * @throws `SEALED` when a blocker is sealed (closed), even a completed one.
  * @throws `TOO_LONG` when the title, body or a string field is over its limit.
  * @throws `UNKNOWN_FIELD`, `INVALID_FIELD`, `MISSING_FIELD`, `TOO_MANY_FIELDS` when `fields` does not fit the queue.
  * @throws `UNKNOWN_STATE`, `INVALID_TARGET` when `to` is not a state of the queue, or is not an unstarted or backlog state.
@@ -763,6 +764,7 @@ export const reply = mutation({
  * @throws `NOT_BLOCKED` when the hold is on blockers but none is still open.
  * @throws `NOT_FOUND` when a blocker does not exist.
  * @throws `INVALID_ARGUMENT` when a blocker ended without completing.
+ * @throws `SEALED` when a blocker is sealed (closed), even a completed one.
  * @throws `TOO_MANY_BLOCKERS`, `TOO_MANY_BLOCKED` when a blocker cap would be passed.
  * @throws `CYCLE`, `GRAPH_TOO_DEEP` when a new blocks link would close a cycle, or the blocker chain is too long to check.
  * @throws `UNKNOWN_STATE`, `INVALID_TARGET` when `to` is not a state of the queue, or is not a waiting state that fits what the ticket waits on.
