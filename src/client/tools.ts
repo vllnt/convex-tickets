@@ -18,14 +18,19 @@ import type { QueueMap, RunMutationCtx } from "./types.js";
  * validators and a handler. Adapt it to your agent framework or MCP server.
  */
 export interface TicketTool<A extends PropertyValidators, R> {
+  /** The tool name, as the model calls it. */
   name: string;
+  /** What the tool does and when to use it, written for the model. */
   description: string;
+  /** Convex validators for the tool's arguments. The bound party is never one of them. */
   args: A;
+  /** Run the tool as the bound party. Throws the same coded errors as the matching `Tickets` method. */
   handler: (ctx: RunMutationCtx, args: ObjectType<A>) => Promise<R>;
 }
 
 /** Who the tools act as. The party is bound by the host, never a tool argument. */
 export interface ToolBinding {
+  /** The party every tool acts as. */
   party: Party;
   /** `internal` lets this agent read internal notes. Default `public`. */
   view?: Visibility;
@@ -114,13 +119,21 @@ export type ListToolResult =
 
 /** The eight default tools, keyed by name. */
 export interface TicketTools {
+  /** Open a ticket in a queue. */
   open: TicketTool<typeof openArgs, FunctionReturnType<Mutations["open"]>>;
+  /** List tickets by queue, assignee, requester, subject or parent, or search titles. */
   list: TicketTool<typeof listArgs, ListToolResult>;
+  /** Read one ticket. */
   get: TicketTool<typeof getArgs, TicketDetail | null>;
+  /** Claim a named ticket or the next one in a queue. */
   claim: TicketTool<typeof claimArgs, FunctionReturnType<Mutations["claim"]>>;
+  /** Add a message or an internal note. */
   reply: TicketTool<typeof replyArgs, FunctionReturnType<Mutations["reply"]>>;
+  /** Ask the requester for input. */
   requestInput: TicketTool<typeof requestInputArgs, FunctionReturnType<Mutations["requestInput"]>>;
+  /** Pass the ticket to another queue or party. */
   handoff: TicketTool<typeof handoffArgs, FunctionReturnType<Mutations["handoff"]>>;
+  /** Finish the ticket with a resolution and a result. */
   resolve: TicketTool<typeof resolveArgs, FunctionReturnType<Mutations["resolve"]>>;
 }
 
@@ -145,10 +158,17 @@ function toFilter(args: ObjectType<typeof listArgs> & { by: Exclude<ObjectType<t
  * trusted overrides) are never included. Add move, hold, release, renew,
  * cancel, reopen or link yourself when an agent needs them.
  *
+ * Each handler runs the matching mutation or query as the bound party, so it
+ * throws the same coded errors. The `list` tool returns at most 100 tickets a
+ * page (20 by default).
+ *
  * @param tickets - The host's `Tickets` client.
  * @param binding - The party the tools act as, and the view it may read.
  * @returns The tools, keyed by name.
  * @example
+ * import { ticketTools } from "@vllnt/convex-tickets/tools";
+ * import { tickets } from "./tickets";
+ *
  * const tools = ticketTools(tickets, { party: { ref: "agent:billing", kind: "agent" } });
  * await tools.claim.handler(ctx, { queue: "billing" });
  */

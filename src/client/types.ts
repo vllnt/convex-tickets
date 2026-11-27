@@ -16,7 +16,9 @@ export type FieldsSpec = Record<string, FieldSpec>;
 
 /** One named state: its category, and for a waiting state what it waits on. */
 export interface StateSpec {
+  /** The status category the state belongs to. */
   category: Category;
+  /** For a waiting state: what it waits on. */
   on?: WaitTarget;
 }
 
@@ -31,10 +33,13 @@ export interface PolicyInput {
   dueInMs?: number;
   /** How long a done or canceled ticket may be reopened. `0` seals at once, `null` never. */
   reopenWindowMs?: number | null;
+  /** Handoffs a ticket may make. The next one is refused with `HOP_LIMIT`. */
   maxHops?: number;
   /** Lease expiries before the ticket escalates instead of returning to the queue. */
   maxReturns?: number;
+  /** Messages a ticket may hold. Past it, `reply` returns `MESSAGE_LIMIT`; `requestInput`, and `resolve` with a body, throw it. */
   maxMessages?: number;
+  /** Active tickets one requester may have in this queue. Past it, `open` throws `TOO_MANY_OPEN`. */
   maxOpenPerRequester?: number;
   /** The queue that escalations go to. */
   escalateTo?: string;
@@ -51,9 +56,13 @@ export interface QueueDefinition<
   F extends FieldsSpec = FieldsSpec,
   R extends FieldsSpec = FieldsSpec,
 > {
+  /** The queue's named states. Omit for the default five. */
   states?: S;
+  /** The ticket fields the queue declares. */
   fields?: F;
+  /** The result fields a resolution carries. */
   result?: R;
+  /** The queue's policy. */
   policy?: PolicyInput;
 }
 

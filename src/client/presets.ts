@@ -4,8 +4,11 @@ const MINUTE = 60_000;
 
 /** Optional overrides every preset accepts. Policy keys you pass win over the preset's. */
 export interface PresetOptions<F extends FieldsSpec, R extends FieldsSpec> {
+  /** The queue's ticket fields. */
   fields?: F;
+  /** The queue's result fields. */
   result?: R;
+  /** Policy overrides. */
   policy?: PolicyInput;
 }
 
@@ -36,7 +39,10 @@ export const PROJECT_STATES = {
  * @param options - Fields, result fields and policy overrides.
  * @returns Settings for `defineQueue`.
  * @example
- * billing: defineQueue(agentQueue({ fields: { amount: { type: "number", required: true } } }))
+ * import { defineQueue } from "@vllnt/convex-tickets";
+ * import { agentQueue } from "@vllnt/convex-tickets/presets";
+ *
+ * const billing = defineQueue(agentQueue({ fields: { amount: { type: "number", required: true } } }));
  */
 export function agentQueue<
   const F extends FieldsSpec = Record<never, never>,
@@ -52,7 +58,10 @@ export function agentQueue<
  * @param options - Fields, result fields and policy overrides.
  * @returns Settings for `defineQueue`.
  * @example
- * "billing-humans": defineQueue(deskQueue())
+ * import { defineQueue } from "@vllnt/convex-tickets";
+ * import { deskQueue } from "@vllnt/convex-tickets/presets";
+ *
+ * const billingHumans = defineQueue(deskQueue());
  */
 export function deskQueue<
   const F extends FieldsSpec = Record<never, never>,
@@ -68,7 +77,10 @@ export function deskQueue<
  * @param options - Fields, result fields and policy overrides.
  * @returns Settings for `defineQueue`.
  * @example
- * eng: defineQueue(projectQueue({ fields: { estimate: { type: "number" } } }))
+ * import { defineQueue } from "@vllnt/convex-tickets";
+ * import { projectQueue } from "@vllnt/convex-tickets/presets";
+ *
+ * const eng = defineQueue(projectQueue({ fields: { estimate: { type: "number" } } }));
  */
 export function projectQueue<
   const F extends FieldsSpec = Record<never, never>,

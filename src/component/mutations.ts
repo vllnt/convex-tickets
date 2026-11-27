@@ -116,6 +116,15 @@ async function recordTrip(
 /**
  * Write the queue definitions, state names, field types, limits and hook handle.
  * Run once per deploy from the host (the client's `sync`). Additive only.
+ *
+ * Args: `queues` (full definitions), optional `onEventHandle`, `limits` and `retentionMs`.
+ * Returns the names of the queues `created`, `updated` and `unchanged`.
+ *
+ * @throws `INVALID_ARGUMENT` when `onEventHandle` did not come from `createFunctionHandle`, `retentionMs` is not a positive number, or a limit is not a positive integer or is over its ceiling.
+ * @throws `INVALID_QUEUE` when two queues share a name, a queue definition is invalid, or `leaseMs` would switch between a number and `null` while a ticket is started.
+ * @throws `STATE_CATEGORY_CHANGED` when a state would change category.
+ * @throws `FIELD_CHANGED` when a field or result field would be removed, change type or lose an enum option.
+ * @throws `STATE_IN_USE` when a dropped state still has tickets.
  */
 export const sync = mutation({
   args: {
@@ -240,7 +249,22 @@ export const sync = mutation({
   },
 });
 
-/** Open a ticket in a queue. A repeat with the same idempotency key returns the first ticket. */
+/**
+ * Open a ticket in a queue. A repeat with the same idempotency key returns the first ticket.
+ *
+ * Args: `queue`, `actor` (the requester) and `title`; optional `fields`, `to`, `priority`, `subjectRef`, `parentId`, `blockedBy`, `idempotencyKey` and `body`.
+ * Returns the new ticket's id.
+ *
+ * @throws `UNKNOWN_QUEUE` when the queue was never synced.
+ * @throws `NOT_FOUND` when the parent or a blocker does not exist.
+ * @throws `INVALID_ARGUMENT` when the title is empty, `priority` is not an integer from 0 to 4, or a blocker ended without completing.
+ * @throws `TOO_LONG` when the title, body or a string field is over its limit.
+ * @throws `UNKNOWN_FIELD`, `INVALID_FIELD`, `MISSING_FIELD`, `TOO_MANY_FIELDS` when `fields` does not fit the queue.
+ * @throws `UNKNOWN_STATE`, `INVALID_TARGET` when `to` is not a state of the queue, or is not an unstarted or backlog state.
+ * @throws `RATE_LIMITED` when the requester is over the opens-per-minute limit; the error data carries `retryAt`.
+ * @throws `TOO_MANY_OPEN` when the requester already has `maxOpenPerRequester` active tickets in the queue.
+ * @throws `TOO_MANY_BLOCKERS`, `TOO_MANY_BLOCKED` when a blocker cap would be passed.
+ */
 export const open = mutation({
   args: {
     queue: v.string(),
@@ -354,6 +378,15 @@ async function nextClaimable(env: Env, queue: string, actor: Party): Promise<Tic
 /**
  * Take a ticket, or the next claimable one in a queue. One transaction: of two
  * racing callers exactly one wins. Losing returns a reason instead of throwing.
+ *
+ * Args: `actor`, and `ticketId` or `queue`; optional `to`, the started state to land in.
+ * Returns `{ ok: true, ticketId, claimSeq, state, leaseExpiresAt? }`, or `{ ok: false, reason }` with `TAKEN`, `BLOCKED`, `RESERVED`, `EMPTY` or `NOT_CLAIMABLE`. A ticket the actor already holds returns `ok: true` with its current `claimSeq`.
+ *
+ * @throws `INVALID_ARGUMENT` when neither `ticketId` nor `queue` is given.
+ * @throws `UNKNOWN_QUEUE` when claiming by `queue` and the queue was never synced.
+ * @throws `NOT_FOUND` when the ticket does not exist.
+ * @throws `WRONG_QUEUE` when `queue` is given and the ticket is in another queue.
+ * @throws `UNKNOWN_STATE`, `INVALID_TARGET` when `to` is not a state of the queue, or is not a started state.
  */
 export const claim = mutation({
   args: {
@@ -392,7 +425,18 @@ export const claim = mutation({
   },
 });
 
-/** Extend the holder's lease on a started ticket. A stale claim number gets `CLAIM_LOST`. No-op without a lease. */
+/**
+ * Extend the holder's lease on a started ticket. A stale claim number gets `CLAIM_LOST`. No-op without a lease.
+ *
+ * Args: `ticketId`, `actor` and `claimSeq`.
+ * Returns `{ expiresAt }`, the new expiry in epoch ms, or null in a queue without a lease.
+ *
+ * @throws `NOT_FOUND` when the ticket does not exist.
+ * @throws `SEALED` when the ticket is closed.
+ * @throws `CLAIM_LOST` when `claimSeq` is stale or the lease has expired.
+ * @throws `INVALID_MOVE` when the ticket is not in a category this verb accepts.
+ * @throws `NOT_HOLDER` when `actor` does not hold the ticket.
+ */
 export const renew = mutation({
   args: { ticketId: v.id("tickets"), actor: partyValidator, claimSeq: v.number() },
   returns: v.object({ expiresAt: v.union(v.number(), v.null()) }),
@@ -405,7 +449,21 @@ export const renew = mutation({
   },
 });
 
-/** Give a started ticket back to its queue. Holder, or a trusted host call. */
+/**
+ * Give a started ticket back to its queue. Holder, or a trusted host call.
+ *
+ * Args: `ticketId` and `actor`; `claimSeq` or `trusted`; optional `to` (an unstarted state) and `reason`.
+ * Returns where the ticket is now: `queue`, `state`, `category` and `claimSeq`.
+ *
+ * @throws `NOT_FOUND` when the ticket does not exist.
+ * @throws `SEALED` when the ticket is closed.
+ * @throws `INVALID_ARGUMENT` when `claimSeq` is missing on a call that is not `trusted`.
+ * @throws `CLAIM_LOST` when `claimSeq` is stale or the lease has expired.
+ * @throws `INVALID_MOVE` when the ticket is not in a category this verb accepts.
+ * @throws `NOT_HOLDER` when `actor` does not hold the ticket.
+ * @throws `TOO_LONG` when `reason` is over the string limit.
+ * @throws `UNKNOWN_STATE`, `INVALID_TARGET` when `to` is not a state of the queue, or is not an unstarted state.
+ */
 export const release = mutation({
   args: {
     ticketId: v.id("tickets"),
@@ -443,6 +501,15 @@ export const release = mutation({
 /**
  * Set or clear the assignee. A host move: call it only from trusted code.
  * Before start it reserves the ticket; on a held ticket it replaces the holder.
+ *
+ * Args: `ticketId`, `actor` and `assignee` (a party, or null); optional `reason`.
+ * Returns where the ticket is now. Assigning the party it already has changes nothing.
+ *
+ * @throws `NOT_FOUND` when the ticket does not exist.
+ * @throws `SEALED` when the ticket is closed.
+ * @throws `INVALID_MOVE` when the ticket is done or canceled.
+ * @throws `TOO_LONG` when `reason` is over the string limit.
+ * @throws `HOLDER_REQUIRED` when `assignee` is null on a started or waiting ticket.
  */
 export const assign = mutation({
   args: {
@@ -477,6 +544,18 @@ export const assign = mutation({
 /**
  * Change the state inside one category, or between backlog and unstarted.
  * A held ticket needs its holder (or a trusted host call).
+ *
+ * Args: `ticketId`, `actor` and `to`; optional `queue`, `claimSeq` and `trusted`.
+ * Returns where the ticket is now. Moving to the state it is already in changes nothing.
+ *
+ * @throws `NOT_FOUND` when the ticket does not exist.
+ * @throws `WRONG_QUEUE` when `queue` is given and the ticket is in another queue.
+ * @throws `SEALED` when the ticket is closed.
+ * @throws `UNKNOWN_STATE` when `to` is not a state of the queue.
+ * @throws `INVALID_MOVE` when `to` is in another category; only backlog and unstarted may swap.
+ * @throws `INVALID_TARGET` when a waiting ticket is moved to a waiting state that does not fit what it waits on.
+ * @throws `INVALID_ARGUMENT` when `claimSeq` is missing on a call that is not `trusted`.
+ * @throws `CLAIM_LOST`, `NOT_HOLDER` when a held ticket is moved without its holder's current `claimSeq` and `actor`.
  */
 export const move = mutation({
   args: {
@@ -514,7 +593,25 @@ export const move = mutation({
   },
 });
 
-/** The holder asks the requester for input. The ticket waits on the requester and the lease stops. */
+/**
+ * The holder asks the requester for input. The ticket waits on the requester and the lease stops.
+ *
+ * Args: `ticketId`, `actor`, `claimSeq` and `body`; optional `fields` (queue field names to ask for), `to` and `queue`.
+ * Returns where the ticket is now (category `waiting`) and the new `messageId`.
+ *
+ * @throws `NOT_FOUND` when the ticket does not exist.
+ * @throws `WRONG_QUEUE` when `queue` is given and the ticket is in another queue.
+ * @throws `SEALED` when the ticket is closed.
+ * @throws `CLAIM_LOST` when `claimSeq` is stale or the lease has expired.
+ * @throws `INVALID_MOVE` when the ticket is not in a category this verb accepts.
+ * @throws `NOT_HOLDER` when `actor` does not hold the ticket.
+ * @throws `TOO_LONG` when `body` is over the body limit.
+ * @throws `UNKNOWN_FIELD` when a requested field is not declared by the queue.
+ * @throws `MESSAGE_LIMIT` when the ticket already has `maxMessages` messages.
+ * @throws `RATE_LIMITED` when `actor` is over the messages-per-minute limit; the error data carries `retryAt`.
+ * @throws `UNKNOWN_STATE`, `INVALID_TARGET` when `to` is not a state of the queue, or is not a waiting state that waits on the requester.
+ * @throws `NO_LANDING_STATE` when the queue has no waiting state for the requester.
+ */
 export const requestInput = mutation({
   args: {
     ticketId: v.id("tickets"),
@@ -568,6 +665,17 @@ export const requestInput = mutation({
 /**
  * Add a message to the thread. A requester reply to an input request supplies
  * fields and returns the ticket to work. Any other reply only adds a message.
+ *
+ * Args: `ticketId`, `actor` and `body`; optional `visibility`, `fields`, `idempotencyKey` and `queue`.
+ * Returns `{ ok: true, messageId, resumed, duplicate }`, or `{ ok: false, reason: "MESSAGE_LIMIT", escalated }` when the ticket is full. A full active ticket escalates once if its queue has an `escalateTo`; otherwise a `guardrail_tripped` transition is recorded. A repeated `idempotencyKey` returns the first message with `duplicate: true`.
+ *
+ * @throws `NOT_FOUND` when the ticket does not exist.
+ * @throws `WRONG_QUEUE` when `queue` is given and the ticket is in another queue.
+ * @throws `SEALED` when the ticket is closed.
+ * @throws `TOO_LONG` when `body` or a string field is over its limit.
+ * @throws `FIELDS_NOT_ACCEPTED` when `fields` is given by anyone but the requester answering an input request.
+ * @throws `UNKNOWN_FIELD`, `INVALID_FIELD`, `MISSING_FIELD`, `TOO_MANY_FIELDS` when `fields` does not fit the queue.
+ * @throws `RATE_LIMITED` when `actor` is over the messages-per-minute limit; the error data carries `retryAt`.
  */
 export const reply = mutation({
   args: {
@@ -636,6 +744,23 @@ export const reply = mutation({
 /**
  * The holder pauses work. With blockers it links them and waits on them; without
  * them it waits on something outside until `resume`.
+ *
+ * Args: `ticketId`, `actor` and `claimSeq`; optional `blockers`, `waitingOn`, `to` and `reason`.
+ * Returns where the ticket is now.
+ *
+ * @throws `NOT_FOUND` when the ticket does not exist.
+ * @throws `SEALED` when the ticket is closed.
+ * @throws `CLAIM_LOST` when `claimSeq` is stale or the lease has expired.
+ * @throws `INVALID_MOVE` when the ticket is not in a category this verb accepts.
+ * @throws `NOT_HOLDER` when `actor` does not hold the ticket.
+ * @throws `TOO_LONG` when `reason` is over the string limit.
+ * @throws `NOT_BLOCKED` when the hold is on blockers but none is still open.
+ * @throws `NOT_FOUND` when a blocker does not exist.
+ * @throws `INVALID_ARGUMENT` when a blocker ended without completing.
+ * @throws `TOO_MANY_BLOCKERS`, `TOO_MANY_BLOCKED` when a blocker cap would be passed.
+ * @throws `CYCLE`, `GRAPH_TOO_DEEP` when a new blocks link would close a cycle, or the blocker chain is too long to check.
+ * @throws `UNKNOWN_STATE`, `INVALID_TARGET` when `to` is not a state of the queue, or is not a waiting state that fits what the ticket waits on.
+ * @throws `NO_LANDING_STATE` when the queue has no waiting state for this hold.
  */
 export const hold = mutation({
   args: {
@@ -674,7 +799,21 @@ export const hold = mutation({
   },
 });
 
-/** Return a waiting ticket to work. Holder, or a trusted host call. */
+/**
+ * Return a waiting ticket to work. Holder, or a trusted host call.
+ *
+ * Args: `ticketId` and `actor`; `claimSeq` or `trusted`; optional `to` (a started state) and `reason`.
+ * Returns where the ticket is now.
+ *
+ * @throws `NOT_FOUND` when the ticket does not exist.
+ * @throws `SEALED` when the ticket is closed.
+ * @throws `INVALID_ARGUMENT` when `claimSeq` is missing on a call that is not `trusted`.
+ * @throws `CLAIM_LOST` when `claimSeq` is stale or the lease has expired.
+ * @throws `INVALID_MOVE` when the ticket is not in a category this verb accepts.
+ * @throws `NOT_HOLDER` when `actor` does not hold the ticket.
+ * @throws `TOO_LONG` when `reason` is over the string limit.
+ * @throws `UNKNOWN_STATE`, `INVALID_TARGET` when `to` is not a state of the queue, or is not a started state.
+ */
 export const resume = mutation({
   args: {
     ticketId: v.id("tickets"),
@@ -717,6 +856,19 @@ async function refuseHandoff(env: Env, ticket: Ticket, actor: Party, reason: "HO
  * Pass a started ticket to another queue (it lands unstarted) or to a named
  * party (it stays started for them). Counts one hop; the hop limit and the
  * ping-pong check refuse and escalate.
+ *
+ * Args: `ticketId`, `actor` and `claimSeq`; `toQueue`, `toParty` or both; optional `fields` and `reason`.
+ * Returns `{ ok: true, queue, state, claimSeq }`, or `{ ok: false, reason, escalated }` with `HOP_LIMIT` or `PING_PONG`.
+ *
+ * @throws `INVALID_ARGUMENT` when neither `toQueue` nor `toParty` is given.
+ * @throws `NOT_FOUND` when the ticket does not exist.
+ * @throws `SEALED` when the ticket is closed.
+ * @throws `CLAIM_LOST` when `claimSeq` is stale or the lease has expired.
+ * @throws `INVALID_MOVE` when the ticket is not in a category this verb accepts.
+ * @throws `NOT_HOLDER` when `actor` does not hold the ticket.
+ * @throws `TOO_LONG` when `reason` is over the string limit.
+ * @throws `UNKNOWN_QUEUE` when `toQueue` was never synced.
+ * @throws `UNKNOWN_FIELD`, `INVALID_FIELD`, `MISSING_FIELD`, `TOO_MANY_FIELDS`, `TOO_LONG` when `fields` does not fit the target queue.
  */
 export const handoff = mutation({
   args: {
@@ -782,6 +934,21 @@ export const handoff = mutation({
 /**
  * Finish a started ticket with a resolution and a typed result. `completed`
  * clears the blocks this ticket holds on others; other endings clear nothing.
+ *
+ * Args: `ticketId`, `actor`, `claimSeq` and `resolution`; optional `result`, `body`, `to` and `queue`.
+ * Returns where the ticket is now.
+ *
+ * @throws `NOT_FOUND` when the ticket does not exist.
+ * @throws `WRONG_QUEUE` when `queue` is given and the ticket is in another queue.
+ * @throws `SEALED` when the ticket is closed.
+ * @throws `CLAIM_LOST` when `claimSeq` is stale or the lease has expired.
+ * @throws `INVALID_MOVE` when the ticket is not in a category this verb accepts.
+ * @throws `NOT_HOLDER` when `actor` does not hold the ticket.
+ * @throws `UNKNOWN_FIELD`, `INVALID_FIELD`, `MISSING_FIELD`, `TOO_MANY_FIELDS`, `TOO_LONG` when `result` does not fit the queue's result fields; `completed` needs every required one.
+ * @throws `TOO_LONG` when `body` is over the body limit.
+ * @throws `MESSAGE_LIMIT` when `body` is given and the ticket already has `maxMessages` messages.
+ * @throws `RATE_LIMITED` when `body` is given and `actor` is over the messages-per-minute limit; the error data carries `retryAt`.
+ * @throws `UNKNOWN_STATE`, `INVALID_TARGET` when `to` is not a state of the queue, or is not a done state.
  */
 export const resolve = mutation({
   args: {
@@ -828,7 +995,20 @@ export const resolve = mutation({
   },
 });
 
-/** Reopen a done or canceled ticket before it is sealed. Requester, or a trusted host call. */
+/**
+ * Reopen a done or canceled ticket before it is sealed. Requester, or a trusted host call.
+ *
+ * Args: `ticketId` and `actor`; optional `trusted`, `to` (an unstarted state) and `reason`.
+ * Returns where the ticket is now.
+ *
+ * @throws `NOT_FOUND` when the ticket does not exist.
+ * @throws `SEALED` when the ticket is closed.
+ * @throws `INVALID_MOVE` when the ticket is not done or canceled.
+ * @throws `NOT_REQUESTER` when `actor` is not the requester and the call is not `trusted`.
+ * @throws `TOO_LONG` when `reason` is over the string limit.
+ * @throws `TOO_MANY_OPEN` when the requester already has `maxOpenPerRequester` active tickets in the queue.
+ * @throws `UNKNOWN_STATE`, `INVALID_TARGET` when `to` is not a state of the queue, or is not an unstarted state.
+ */
 export const reopen = mutation({
   args: {
     ticketId: v.id("tickets"),
@@ -876,7 +1056,16 @@ export const reopen = mutation({
   },
 });
 
-/** Seal a done or canceled ticket now. A host move. Final. */
+/**
+ * Seal a done or canceled ticket now. A host move. Final.
+ *
+ * Args: `ticketId` and `actor`.
+ * Returns where the ticket is now.
+ *
+ * @throws `NOT_FOUND` when the ticket does not exist.
+ * @throws `SEALED` when the ticket is closed.
+ * @throws `INVALID_MOVE` when the ticket is not done or canceled.
+ */
 export const close = mutation({
   args: { ticketId: v.id("tickets"), actor: partyValidator },
   returns: moveResult,
@@ -889,7 +1078,19 @@ export const close = mutation({
   },
 });
 
-/** Call a ticket off. No result. Requester, or a trusted host call. */
+/**
+ * Call a ticket off. No result. Requester, or a trusted host call.
+ *
+ * Args: `ticketId` and `actor`; optional `trusted`, `to` (a canceled state) and `reason`.
+ * Returns where the ticket is now.
+ *
+ * @throws `NOT_FOUND` when the ticket does not exist.
+ * @throws `SEALED` when the ticket is closed.
+ * @throws `INVALID_MOVE` when the ticket is already done or canceled.
+ * @throws `NOT_REQUESTER` when `actor` is not the requester and the call is not `trusted`.
+ * @throws `TOO_LONG` when `reason` is over the string limit.
+ * @throws `UNKNOWN_STATE`, `INVALID_TARGET` when `to` is not a state of the queue, or is not a canceled state.
+ */
 export const cancel = mutation({
   args: {
     ticketId: v.id("tickets"),
@@ -920,7 +1121,21 @@ export const cancel = mutation({
   },
 });
 
-/** Send a ticket to its queue's escalation queue. Holder, or a trusted host call. */
+/**
+ * Send a ticket to its queue's escalation queue. Holder, or a trusted host call.
+ *
+ * Args: `ticketId`, `actor` and `reason`; `claimSeq` or `trusted`.
+ * Returns where the ticket is now: in the escalation queue, unstarted and unassigned.
+ *
+ * @throws `NOT_FOUND` when the ticket does not exist.
+ * @throws `SEALED` when the ticket is closed.
+ * @throws `INVALID_ARGUMENT` when `claimSeq` is missing on a call that is not `trusted`.
+ * @throws `CLAIM_LOST` when `claimSeq` is stale or the lease has expired.
+ * @throws `INVALID_MOVE` when the ticket is not in a category this verb accepts.
+ * @throws `NOT_HOLDER` when `actor` does not hold the ticket.
+ * @throws `TOO_LONG` when `reason` is over the string limit.
+ * @throws `NO_ESCALATION` when the queue has no `escalateTo`.
+ */
 export const escalate = mutation({
   args: {
     ticketId: v.id("tickets"),
@@ -964,6 +1179,16 @@ async function findLink(
  * Link a ticket to another ticket (`blocks`, `duplicates`, `relates`) or to an
  * outside thing (`ref`, with your own `refKind`, for example `label` or `agentThread`).
  * For `blocks`, `ticketId` is the blocker and `toTicketId` the ticket that waits.
+ *
+ * Args: `ticketId`, `actor` and `relation`; `toTicketId`, or `refKind` and `ref`; optional `label`.
+ * Returns the new link's id, or the existing link's id when the same link is already there.
+ *
+ * @throws `NOT_FOUND` when the ticket or `toTicketId` does not exist.
+ * @throws `SEALED` when the ticket is closed, or for a `blocks` link the ticket that would wait is.
+ * @throws `TOO_LONG` when `refKind`, `ref` or `label` is over the string limit.
+ * @throws `INVALID_ARGUMENT` when a `ref` link lacks `refKind` or `ref` or has a `toTicketId`, another relation lacks `toTicketId`, a ticket links to itself, or the blocker of a `blocks` link ended without completing.
+ * @throws `TOO_MANY_BLOCKERS`, `TOO_MANY_BLOCKED` when a blocker cap would be passed.
+ * @throws `CYCLE`, `GRAPH_TOO_DEEP` when a `blocks` link would close a cycle (or make a ticket block itself), or the blocker chain is too long to check.
  */
 export const link = mutation({
   args: {
@@ -1019,7 +1244,12 @@ export const link = mutation({
 
 /**
  * Remove a link. Removing a blocks link keeps the waiting ticket's counter exact.
- * Refused with `SEALED` when the link's owner is sealed, or, for a blocks link, when the waiting ticket is.
+ *
+ * Args: `linkId`.
+ * Returns null.
+ *
+ * @throws `NOT_FOUND` when the link does not exist.
+ * @throws `SEALED` when the link's owner is closed, or for a `blocks` link the waiting ticket is.
  */
 export const unlink = mutation({
   args: { linkId: v.id("links") },

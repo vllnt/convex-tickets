@@ -14,6 +14,9 @@ export const PURGE_BATCH = 200;
  * so the old timer ends), or when the queue no longer has leases; follows a
  * renewal by rescheduling; otherwise returns the ticket to its queue, or
  * escalates it after `maxReturns` expiries, once.
+ *
+ * Args: `ticketId`, the `claimSeq` the timer was set for, and its `leaseId`.
+ * Returns null. Throws no coded error.
  */
 export const expireLease = internalMutation({
   args: { ticketId: v.id("tickets"), claimSeq: v.number(), leaseId: v.id("leases") },
@@ -57,7 +60,13 @@ export const expireLease = internalMutation({
   },
 });
 
-/** Due timer. Emits `due_breached` once, and escalates when the queue policy says so and the ticket has not escalated yet. */
+/**
+ * Due timer. Emits `due_breached` once, and escalates when the queue policy says so and the ticket has not escalated yet.
+ * Does nothing when the due time changed, the breach was already recorded, or the ticket is done or canceled.
+ *
+ * Args: `ticketId` and the `dueAt` the timer was set for.
+ * Returns null. Throws no coded error.
+ */
 export const dueTimer = internalMutation({
   args: { ticketId: v.id("tickets"), dueAt: v.number() },
   returns: v.null(),
@@ -84,6 +93,9 @@ export const dueTimer = internalMutation({
  * Seal timer. Seals a ticket at the end of its reopen window. Does nothing when
  * the ticket was reopened since: its end time no longer matches the one the
  * timer was set for. A move between done (or canceled) states keeps the timer.
+ *
+ * Args: `ticketId` and `endedAt`, the end time the timer was set for.
+ * Returns null. Throws no coded error.
  */
 export const sealTimer = internalMutation({
   args: { ticketId: v.id("tickets"), endedAt: v.number() },
@@ -102,6 +114,9 @@ export const sealTimer = internalMutation({
  * Retention purge. Deletes sealed tickets older than `retentionMs` with their
  * messages, history and links, in batches (a sealed ticket has no lease row), rescheduling itself until
  * nothing is left. Idempotent. Does nothing when retention is off (the default).
+ *
+ * Args: optional `batch`, the most rows to delete per kind in one pass (default `PURGE_BATCH`).
+ * Returns `{ deleted, more }`: the rows deleted in this pass, and whether the purge rescheduled itself. Throws no coded error.
  */
 export const purge = internalMutation({
   args: { batch: v.optional(v.number()) },

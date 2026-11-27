@@ -18,7 +18,13 @@ import {
   stateDefValidator,
 } from "./validators.js";
 
+/**
+ * The component's tables: `queues`, `tickets`, `leases`, `messages`, `links`,
+ * `transitions` and `config`. The host never reads them directly: it goes
+ * through the component's queries and mutations.
+ */
 export default defineSchema({
+  /** One row per synced queue: states, declared fields, result fields, policy and schema version. */
   queues: defineTable({
     name: v.string(),
     states: v.array(stateDefValidator),
@@ -29,6 +35,7 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_name", ["name"]),
 
+  /** One row per ticket. The indexes serve claiming, the list filters, idempotent opens, retention and title search. */
   tickets: defineTable({
     queue: v.string(),
     state: v.string(),
@@ -73,6 +80,7 @@ export default defineSchema({
     .index("by_closed", ["closedAt"])
     .searchIndex("search_title", { searchField: "title", filterFields: ["queue", "category"] }),
 
+  /** The live lease of a started ticket in a queue with leases. */
   leases: defineTable({
     ticketId: v.id("tickets"),
     partyRef: v.string(),
@@ -80,6 +88,7 @@ export default defineSchema({
     expiresAt: v.number(),
   }).index("by_ticket", ["ticketId"]),
 
+  /** A ticket's thread, numbered per ticket by `seq`. */
   messages: defineTable({
     ticketId: v.id("tickets"),
     seq: v.number(),
@@ -97,6 +106,7 @@ export default defineSchema({
     .index("by_ticket_visibility", ["ticketId", "visibility", "seq"])
     .index("by_ticket_key", ["ticketId", "idempotencyKey"]),
 
+  /** Links between tickets (`blocks`, `duplicates`, `relates`) and to outside things (`ref`). */
   links: defineTable({
     ticketId: v.id("tickets"),
     relation: linkRelationValidator,
@@ -111,6 +121,7 @@ export default defineSchema({
     .index("by_target", ["toTicketId", "relation"])
     .index("by_ref", ["refKind", "ref", "ticketId"]),
 
+  /** A ticket's append-only history, numbered per ticket by `seq`. */
   transitions: defineTable({
     ticketId: v.id("tickets"),
     seq: v.number(),
@@ -129,6 +140,7 @@ export default defineSchema({
     at: v.number(),
   }).index("by_ticket_seq", ["ticketId", "seq"]),
 
+  /** The mount config, one row: the host hook's function handle, the retention period and the limits. */
   config: defineTable({
     onEventHandle: v.optional(v.string()),
     retentionMs: v.optional(v.number()),

@@ -21,7 +21,8 @@ function isStorableKey(key: string): boolean {
  *
  * @param ctx - Any query or mutation context.
  * @param name - The queue name.
- * @returns The queue row. Throws `UNKNOWN_QUEUE` when `sync` never wrote it.
+ * @returns The queue row.
+ * @throws `UNKNOWN_QUEUE` when `sync` never wrote the queue.
  */
 export async function loadQueue(ctx: QueryCtx, name: string): Promise<Doc<"queues">> {
   const queue = await ctx.db
@@ -60,6 +61,9 @@ function waitMatches(state: StateDef, waitingOn: WaitingOn | undefined): boolean
  * @param to - An explicit target state name, if the caller chose one.
  * @param waitingOn - For waiting landings, what ends the wait.
  * @returns The state name to store.
+ * @throws `UNKNOWN_STATE` when `to` is not a state of the queue.
+ * @throws `INVALID_TARGET` when `to` is in another category, or is a waiting state that does not fit `waitingOn`.
+ * @throws `NO_LANDING_STATE` when no state of the category fits the move.
  */
 export function landingState(
   queue: Doc<"queues">,
@@ -90,11 +94,12 @@ export function landingState(
 }
 
 /**
- * The category of a state, or `UNKNOWN_STATE`.
+ * Look up a state of a queue by name.
  *
  * @param queue - The queue to look in.
  * @param name - The state name.
- * @returns The state definition.
+ * @returns The state definition, with its category.
+ * @throws `UNKNOWN_STATE` when the queue has no such state.
  */
 export function stateOf(queue: Doc<"queues">, name: string): StateDef {
   const state = queue.states.find((s) => s.name === name);
@@ -103,11 +108,12 @@ export function stateOf(queue: Doc<"queues">, name: string): StateDef {
 }
 
 /**
- * Throw `TOO_LONG` when a string is over its cap.
+ * Refuse a string that is over its cap.
  *
  * @param label - What the string is, for the message.
  * @param value - The string.
  * @param max - The cap in characters.
+ * @throws `TOO_LONG` when `value` is longer than `max`.
  */
 export function assertLength(label: string, value: string, max: number): void {
   if (value.length > max) throw ticketsError("TOO_LONG", `${label} is over ${max} characters`);
@@ -118,7 +124,13 @@ export function assertLength(label: string, value: string, max: number): void {
  *
  * @param defs - The declared fields (or result fields).
  * @param values - The supplied values.
+ * @param limits - The mount limits: `maxFields` and `maxStringChars` apply.
  * @param options - `requireAll` enforces required keys; `label` names the record in errors.
+ * @throws `TOO_MANY_FIELDS` when `values` has more than `maxFields` keys.
+ * @throws `UNKNOWN_FIELD` when a key is not declared.
+ * @throws `MISSING_FIELD` when `null` clears a required field, or `requireAll` is set and a required field is absent.
+ * @throws `INVALID_FIELD` when a value has the wrong type, is not a declared enum option, or is not a finite number.
+ * @throws `TOO_LONG` when a string value is over `maxStringChars`.
  */
 export function checkFields(
   defs: readonly FieldDef[],
@@ -160,7 +172,12 @@ export function checkFields(
   }
 }
 
-/** Drop null values: null clears a field, it is never stored. */
+/**
+ * Drop null values: null clears a field, it is never stored.
+ *
+ * @param values - A scalar record.
+ * @returns A copy without the null entries.
+ */
 export function withoutNulls(values: ScalarRecord): ScalarRecord {
   return Object.fromEntries(Object.entries(values).filter(([, value]) => value !== null));
 }
@@ -191,6 +208,9 @@ function isNonNegative(value: number): boolean {
  *
  * @param def - The definition the client sent.
  * @param knownQueues - Every queue name that exists after this sync.
+ * @throws `INVALID_QUEUE` when the name is unsupported, a state is empty or repeated, `on` is set on a state that is not waiting,
+ * a required category has no state, a field key is repeated or not storable, an enum has no options (or a non-enum has some),
+ * a policy number is negative or not finite (counts must be integers), `leaseMs` is 0, or `escalateTo` is the queue itself or an unknown queue.
  */
 export function validateQueueDef(def: QueueDef, knownQueues: ReadonlySet<string>): void {
   if (!NAME_PATTERN.test(def.name)) {
@@ -235,6 +255,8 @@ export function validateQueueDef(def: QueueDef, knownQueues: ReadonlySet<string>
  * @param current - The stored queue row.
  * @param next - The definition being synced.
  * @returns The states removed by `next`, which the caller checks are empty.
+ * @throws `STATE_CATEGORY_CHANGED` when a kept state would change category.
+ * @throws `FIELD_CHANGED` when a field or result field would be removed, change type or lose an enum option.
  */
 export function checkAdditive(current: Doc<"queues">, next: QueueDef): string[] {
   for (const state of next.states) {
@@ -271,6 +293,7 @@ export function checkAdditive(current: Doc<"queues">, next: QueueDef): string[] 
  *
  * @param input - Partial limits from the client.
  * @returns A full limits object.
+ * @throws `INVALID_ARGUMENT` when a limit is not a positive integer, or a graph limit is over its ceiling.
  */
 export function resolveLimits(input: Partial<Limits> | undefined): Limits {
   const limits: Limits = { ...DEFAULT_LIMITS, ...input };

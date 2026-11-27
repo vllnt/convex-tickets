@@ -43,7 +43,12 @@ export function toTicketView(t: Doc<"tickets">): Infer<typeof ticketView> {
   };
 }
 
-/** Map a message row to its view. */
+/**
+ * Map a message row to its view. Drops the idempotency key.
+ *
+ * @param m - The message row.
+ * @returns The view returned by the message queries.
+ */
 export function toMessageView(m: Doc<"messages">): Infer<typeof messageView> {
   return {
     messageId: m._id,
@@ -60,7 +65,12 @@ export function toMessageView(m: Doc<"messages">): Infer<typeof messageView> {
   };
 }
 
-/** Map a link row to its view. */
+/**
+ * Map a link row to its view.
+ *
+ * @param l - The link row.
+ * @returns The view returned by the link queries.
+ */
 export function toLinkView(l: Doc<"links">): Infer<typeof linkView> {
   return {
     linkId: l._id,
@@ -75,7 +85,12 @@ export function toLinkView(l: Doc<"links">): Infer<typeof linkView> {
   };
 }
 
-/** Map a transition row to its view. */
+/**
+ * Map a transition row to its view.
+ *
+ * @param t - The transition row.
+ * @returns The view returned by the history query.
+ */
 export function toTransitionView(t: Doc<"transitions">): Infer<typeof transitionView> {
   return {
     ticketId: t.ticketId,

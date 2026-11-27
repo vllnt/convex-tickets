@@ -6,13 +6,19 @@ import { query } from "./_generated/server.js";
 import { linkView, messageView, queueView, ticketDetail, ticketView, transitionView } from "./validators.js";
 import { toLinkView, toMessageView, toTicketView, toTransitionView } from "./views.js";
 
-/** How many recent messages and links `get` returns. Page the rest with `listMessages`. */
+/** How many recent messages `get` returns. Page the rest with `listMessages`. */
 export const GET_MESSAGES = 20;
+/** How many links, and how many blockers, `get` returns. */
 export const GET_LINKS = 100;
 
 /**
  * Read one ticket with its lease expiry, links, blockers and recent messages.
  * Internal notes are returned only for `view: "internal"`.
+ *
+ * Args: `ticketId`; `view` (`public` by default); `queue` (optional check that the ticket is in this queue).
+ * Returns the ticket detail (the newest 20 messages, oldest first), or null when the ticket does not exist.
+ *
+ * @throws `WRONG_QUEUE` when `queue` is given and the ticket is in another queue.
  */
 export const get = query({
   args: {
@@ -74,6 +80,11 @@ const listFilter = v.union(
 /**
  * Page through tickets by queue (and state or category), assignee, requester,
  * subject or parent. Every branch reads one index range.
+ *
+ * Args: `filter` (`{ by: "queue", queue, state? or category? }`, `{ by: "assignee", assigneeRef, category? }`, `{ by: "requester", requesterRef, category? }`, `{ by: "subject", subjectRef }` or `{ by: "parent", parentId }`) and `paginationOpts`.
+ * Returns one page of ticket views.
+ *
+ * @throws `INVALID_ARGUMENT` when a queue filter gives both `state` and `category`.
  */
 export const list = query({
   args: { filter: listFilter, paginationOpts: paginationOptsValidator },
@@ -118,7 +129,14 @@ export const list = query({
   },
 });
 
-/** Full-text search over titles, optionally inside one queue and category. */
+/**
+ * Full-text search over titles, optionally inside one queue and category.
+ *
+ * Args: `text`; optional `queue` and `category`; `limit` (default 20).
+ * Returns up to `limit` matching ticket views.
+ *
+ * @throws `INVALID_ARGUMENT` when `limit` is not an integer from 1 to 100.
+ */
 export const search = query({
   args: {
     text: v.string(),
@@ -144,7 +162,12 @@ export const search = query({
   },
 });
 
-/** Page through a ticket's thread, oldest first. Internal notes only for `view: "internal"`. */
+/**
+ * Page through a ticket's thread, oldest first. Internal notes only for `view: "internal"`.
+ *
+ * Args: `ticketId`; `view` (`public` by default); `paginationOpts`.
+ * Returns one page of message views. Throws no coded error.
+ */
 export const listMessages = query({
   args: { ticketId: v.id("tickets"), view: v.optional(visibilityValidator), paginationOpts: paginationOptsValidator },
   returns: paginationResultValidator(messageView),
@@ -159,7 +182,12 @@ export const listMessages = query({
   },
 });
 
-/** Page through a ticket's history, oldest first. */
+/**
+ * Page through a ticket's history, oldest first.
+ *
+ * Args: `ticketId` and `paginationOpts`.
+ * Returns one page of transition views. Throws no coded error.
+ */
 export const listTransitions = query({
   args: { ticketId: v.id("tickets"), paginationOpts: paginationOptsValidator },
   returns: paginationResultValidator(transitionView),
@@ -172,7 +200,12 @@ export const listTransitions = query({
   },
 });
 
-/** Every link to one outside thing, such as "which ticket belongs to this agent thread" or "every ticket with this label". */
+/**
+ * Every link to one outside thing, such as "which ticket belongs to this agent thread" or "every ticket with this label".
+ *
+ * Args: `refKind`, `ref` and `paginationOpts`.
+ * Returns one page of link views. Throws no coded error.
+ */
 export const listByRef = query({
   args: { refKind: v.string(), ref: v.string(), paginationOpts: paginationOptsValidator },
   returns: paginationResultValidator(linkView),
@@ -185,7 +218,12 @@ export const listByRef = query({
   },
 });
 
-/** Read one synced queue definition, or null. */
+/**
+ * Read one synced queue definition, or null.
+ *
+ * Args: `name`, the queue name.
+ * Returns the queue's states, fields, result fields, policy, schema version and update time, or null before `sync`. Throws no coded error.
+ */
 export const getQueue = query({
   args: { name: v.string() },
   returns: v.union(queueView, v.null()),

@@ -20,6 +20,7 @@ export const stateDefValidator = v.object({
   category: categoryValidator,
   on: v.optional(waitTargetValidator),
 });
+/** A named state: its name, category and optional wait target. */
 export type StateDef = Infer<typeof stateDefValidator>;
 
 /** One declared ticket field or result field. `options` only applies to `enum`. */
@@ -29,6 +30,7 @@ export const fieldDefValidator = v.object({
   required: v.boolean(),
   options: v.optional(v.array(v.string())),
 });
+/** A declared field: its key, type, required flag and enum options. */
 export type FieldDef = Infer<typeof fieldDefValidator>;
 
 /** A queue's policy, with every default already applied. */
@@ -43,6 +45,7 @@ export const policyValidator = v.object({
   escalateTo: v.optional(v.string()),
   escalateOnDue: v.optional(v.boolean()),
 });
+/** A queue policy with every default applied. */
 export type Policy = Infer<typeof policyValidator>;
 
 /** A queue definition as the client sends it to `sync`. */
@@ -53,6 +56,7 @@ export const queueDefValidator = v.object({
   resultFields: v.array(fieldDefValidator),
   policy: policyValidator,
 });
+/** A queue definition: name, states, fields, result fields and policy. */
 export type QueueDef = Infer<typeof queueDefValidator>;
 
 /** Mount-wide limits, every key optional on input. */
@@ -67,6 +71,7 @@ export const limitsInputValidator = v.object({
   messagesPerMinute: v.optional(v.number()),
 });
 
+/** Mount-wide limits with every key set. This is the stored form. */
 export const limitsValidator = v.object({
   maxBodyChars: v.number(),
   maxStringChars: v.number(),
@@ -112,6 +117,7 @@ export const ticketView = v.object({
   closedAt: v.optional(v.number()),
 });
 
+/** The public shape of a message. */
 export const messageView = v.object({
   messageId: v.id("messages"),
   ticketId: v.id("tickets"),
@@ -126,6 +132,7 @@ export const messageView = v.object({
   createdAt: v.number(),
 });
 
+/** The public shape of a link. */
 export const linkView = v.object({
   linkId: v.id("links"),
   ticketId: v.id("tickets"),
@@ -138,6 +145,7 @@ export const linkView = v.object({
   createdAt: v.number(),
 });
 
+/** The public shape of a history entry. */
 export const transitionView = v.object({
   ticketId: v.id("tickets"),
   seq: v.number(),
@@ -166,6 +174,7 @@ export const blockerView = v.object({
   completed: v.boolean(),
 });
 
+/** What `get` returns: the ticket, its lease expiry, links, blockers and recent messages. */
 export const ticketDetail = v.object({
   ticket: ticketView,
   leaseExpiresAt: v.optional(v.number()),
@@ -174,6 +183,7 @@ export const ticketDetail = v.object({
   messages: v.array(messageView),
 });
 
+/** The public shape of a stored queue definition. */
 export const queueView = v.object({
   name: v.string(),
   states: v.array(stateDefValidator),
@@ -206,6 +216,7 @@ export const claimResult = v.union(
   }),
 );
 
+/** Every reply outcome. A full thread is a result (`MESSAGE_LIMIT`), not an error. */
 export const replyResult = v.union(
   v.object({
     ok: v.literal(true),
@@ -216,6 +227,7 @@ export const replyResult = v.union(
   v.object({ ok: v.literal(false), reason: v.literal("MESSAGE_LIMIT"), escalated: v.boolean() }),
 );
 
+/** Every handoff outcome. Hitting the hop limit or a ping-pong is a result, not an error. */
 export const handoffResult = v.union(
   v.object({ ok: v.literal(true), queue: v.string(), state: v.string(), claimSeq: v.number() }),
   v.object({

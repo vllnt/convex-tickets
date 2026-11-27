@@ -12,4 +12,5 @@ const crons = cronJobs();
 
 crons.interval("tickets:purge", PURGE_INTERVAL, internal.internal_mutations.purge, {});
 
+/** The component's cron jobs: one daily `tickets:purge` run. */
 export default crons;

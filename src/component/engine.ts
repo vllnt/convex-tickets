@@ -7,7 +7,9 @@ import type { Doc, Id } from "./_generated/dataModel.js";
 import type { MutationCtx } from "./_generated/server.js";
 import { landingState, loadConfig, loadQueue } from "./queues.js";
 
+/** A ticket row as stored. */
 export type Ticket = Doc<"tickets">;
+/** A queue row as stored. */
 export type Queue = Doc<"queues">;
 
 const MINUTE = 60_000;
@@ -15,10 +17,15 @@ const rateLimiter = new RateLimiter(components.rateLimiter);
 
 /** Everything one mutation needs: its ctx, one clock reading, the mount config and a queue cache. */
 export interface Env {
+  /** The mutation context. */
   ctx: MutationCtx;
+  /** The clock reading every timestamp in this mutation uses. */
   now: number;
+  /** The mount's limits, with defaults when `sync` has not run. */
   limits: Limits;
+  /** The host hook's function handle, when one was synced. */
   onEventHandle?: string;
+  /** Queue rows loaded so far, by name. */
   queues: Map<string, Queue>;
 }
 
@@ -39,6 +46,7 @@ export async function makeEnv(ctx: MutationCtx): Promise<Env> {
  * @param env - The mutation environment.
  * @param name - The queue name.
  * @returns The queue row.
+ * @throws `UNKNOWN_QUEUE` when `sync` never wrote the queue.
  */
 export async function queueOf(env: Env, name: string): Promise<Queue> {
   const cached = env.queues.get(name);
@@ -49,11 +57,12 @@ export async function queueOf(env: Env, name: string): Promise<Queue> {
 }
 
 /**
- * Load a ticket or throw `NOT_FOUND`.
+ * Load a ticket by id.
  *
  * @param env - The mutation environment.
  * @param ticketId - The ticket id.
  * @returns The ticket row.
+ * @throws `NOT_FOUND` when the ticket does not exist.
  */
 export async function loadTicket(env: Env, ticketId: Id<"tickets">): Promise<Ticket> {
   const ticket = await env.ctx.db.get("tickets", ticketId);
@@ -61,31 +70,59 @@ export async function loadTicket(env: Env, ticketId: Id<"tickets">): Promise<Tic
   return ticket;
 }
 
-/** Throw `SEALED` on a closed ticket. */
+/**
+ * Refuse a closed ticket.
+ *
+ * @param ticket - The ticket being written.
+ * @throws `SEALED` when the ticket is closed.
+ */
 export function assertNotSealed(ticket: Ticket): void {
   if (ticket.closedAt !== undefined) throw ticketsError("SEALED", "the ticket is closed and takes no more writes");
 }
 
-/** Throw `WRONG_QUEUE` when the caller typed the ticket for a queue it is not in. */
+/**
+ * Refuse a ticket the caller typed for a different queue.
+ *
+ * @param ticket - The ticket being written.
+ * @param queue - The queue the caller expects, if it named one.
+ * @throws `WRONG_QUEUE` when `queue` is given and the ticket is in another queue.
+ */
 export function assertQueue(ticket: Ticket, queue: string | undefined): void {
   if (queue !== undefined && ticket.queue !== queue) {
     throw ticketsError("WRONG_QUEUE", `the ticket is in queue "${ticket.queue}", not "${queue}"`);
   }
 }
 
-/** Throw `INVALID_MOVE` unless the ticket is in one of `allowed`. */
+/**
+ * Refuse a ticket that is in the wrong category for a verb.
+ *
+ * @param ticket - The ticket being written.
+ * @param allowed - The categories the verb accepts.
+ * @param verb - The verb name, for messages.
+ * @throws `INVALID_MOVE` unless the ticket is in one of `allowed`.
+ */
 export function assertCategory(ticket: Ticket, allowed: readonly Category[], verb: string): void {
   if (!allowed.includes(ticket.category)) {
     throw ticketsError("INVALID_MOVE", `${verb} needs a ${allowed.join(" or ")} ticket; this one is ${ticket.category}`);
   }
 }
 
-/** True for a ticket that is done with resolution `completed`, the only ending that clears a blocker. */
+/**
+ * Check whether a ticket ended in the one way that clears a blocker.
+ *
+ * @param ticket - The ticket to check.
+ * @returns True when the ticket is done with resolution `completed`.
+ */
 export function isCompleted(ticket: Ticket): boolean {
   return ticket.category === "done" && ticket.resolution === "completed";
 }
 
-/** True for a category that has a holder. */
+/**
+ * Check whether a category has a holder.
+ *
+ * @param category - The category to check.
+ * @returns True for `started` and `waiting`.
+ */
 export function isHeld(category: Category): boolean {
   return category === "started" || category === "waiting";
 }
@@ -109,6 +146,9 @@ async function leaseOf(env: Env, ticketId: Id<"tickets">): Promise<Doc<"leases">
  * @param claimSeq - The claim number the caller got from `claim`.
  * @param allowed - The categories the verb accepts.
  * @param verb - The verb name, for messages.
+ * @throws `CLAIM_LOST` when the claim number is stale or the lease has expired.
+ * @throws `INVALID_MOVE` when the ticket is not in one of `allowed`.
+ * @throws `NOT_HOLDER` when `actor` does not hold the ticket.
  */
 export async function assertHolder(
   env: Env,
@@ -143,6 +183,9 @@ export async function assertHolder(
  * @param args - The caller, its claim number and the trusted flag.
  * @param allowed - The categories the verb accepts.
  * @param verb - The verb name, for messages.
+ * @throws `INVALID_MOVE` when the ticket is not in one of `allowed`.
+ * @throws `INVALID_ARGUMENT` when the call is not trusted and has no claim number.
+ * @throws `CLAIM_LOST` and `NOT_HOLDER` as `assertHolder` does, for a call that is not trusted.
  */
 export async function assertHolderOrTrusted(
   env: Env,
@@ -161,7 +204,14 @@ export async function assertHolderOrTrusted(
   await assertHolder(env, ticket, args.actor, args.claimSeq, allowed, verb);
 }
 
-/** Accept the requester, or anyone when the host vouches with `trusted`. */
+/**
+ * Accept the requester, or anyone when the host vouches with `trusted`.
+ *
+ * @param ticket - The ticket being written.
+ * @param actor - The caller.
+ * @param trusted - True when the host vouches for the call.
+ * @throws `NOT_REQUESTER` when `actor` is not the requester and the call is not trusted.
+ */
 export function assertRequesterOrTrusted(ticket: Ticket, actor: Party, trusted: boolean | undefined): void {
   if (trusted !== true && ticket.requesterRef !== actor.ref) {
     throw ticketsError("NOT_REQUESTER", `only the requester (or a trusted host call) may do this`);
@@ -169,11 +219,12 @@ export function assertRequesterOrTrusted(ticket: Ticket, actor: Party, trusted: 
 }
 
 /**
- * Consume one token of a per-party rate limit, or throw `RATE_LIMITED`.
+ * Consume one token of a per-party rate limit.
  *
  * @param env - The mutation environment.
  * @param name - `open` or `message`.
  * @param partyRef - The party the limit is counted for.
+ * @throws `RATE_LIMITED` when the party is out of tokens. The error data carries `retryAt`.
  */
 export async function rateLimit(env: Env, name: "open" | "message", partyRef: string): Promise<void> {
   const rate = name === "open" ? env.limits.opensPerMinute : env.limits.messagesPerMinute;
@@ -326,7 +377,12 @@ export async function startLease(env: Env, ticket: Ticket): Promise<number | und
   return expiresAt;
 }
 
-/** Remove a ticket's lease row, if any. */
+/**
+ * Remove a ticket's lease row, if any.
+ *
+ * @param env - The mutation environment.
+ * @param ticketId - The ticket.
+ */
 export async function stopLease(env: Env, ticketId: Id<"tickets">): Promise<void> {
   const lease = await leaseOf(env, ticketId);
   if (lease) await env.ctx.db.delete("leases", lease._id);
@@ -335,6 +391,8 @@ export async function stopLease(env: Env, ticketId: Id<"tickets">): Promise<void
 /**
  * Extend a live lease. The caller already passed the fence.
  *
+ * @param env - The mutation environment.
+ * @param ticket - The started ticket.
  * @returns The new expiry, or null when the queue has no lease or the ticket is not started.
  */
 export async function renewLease(env: Env, ticket: Ticket): Promise<number | null> {
@@ -365,7 +423,14 @@ export async function afterEnd(env: Env, ticket: Ticket): Promise<Ticket> {
   return ticket;
 }
 
-/** Seal a done or canceled ticket. Final. */
+/**
+ * Seal a done or canceled ticket. Final.
+ *
+ * @param env - The mutation environment.
+ * @param ticket - The ticket to seal.
+ * @param actor - Who seals it.
+ * @returns The ticket after the move, with `closedAt` set.
+ */
 export async function seal(env: Env, ticket: Ticket, actor: Party): Promise<Ticket> {
   return await transition(env, ticket, { closedAt: env.now }, { type: "closed", actor });
 }
@@ -375,8 +440,9 @@ export async function seal(env: Env, ticket: Ticket, actor: Party): Promise<Tick
  *
  * @param env - The mutation environment.
  * @param ticket - The waiting ticket.
- * @param meta - The transition type (`resumed` or `input_provided`), actor, optional target and extra patch.
+ * @param meta - The transition type (`resumed` or `input_provided`), actor, optional target state, reason and extra patch.
  * @returns The ticket after the move.
+ * @throws `UNKNOWN_STATE` or `INVALID_TARGET` when `meta.to` is not a started state of the queue.
  */
 export async function resumeTicket(
   env: Env,
@@ -403,6 +469,7 @@ export async function resumeTicket(
  * @param ticket - The ticket to escalate, in any category before done.
  * @param actor - Who escalates (the system party for automatic trips).
  * @param reason - Why, stored on the transition.
+ * @param extra - More changes to apply in the same move.
  * @returns The ticket after the move, or null when its queue has no `escalateTo`.
  */
 export async function escalateTicket(
@@ -497,6 +564,10 @@ async function assertNoCycle(env: Env, blockerId: Id<"tickets">, blockedId: Id<"
  * @param actor - Who links them.
  * @param options - `isNew` skips the cycle walk for a ticket that blocks nothing yet.
  * @returns The new link id, and whether the blocker still counts as open.
+ * @throws `NOT_FOUND` when the blocker does not exist.
+ * @throws `TOO_MANY_BLOCKERS` or `TOO_MANY_BLOCKED` when a blocker cap would be passed.
+ * @throws `INVALID_ARGUMENT` when the blocker ended without completing, so it can never clear.
+ * @throws `CYCLE` or `GRAPH_TOO_DEEP` when the walk finds a cycle, or the blocker chain is too long to check.
  */
 export async function addBlocker(
   env: Env,
@@ -534,6 +605,11 @@ export async function addBlocker(
 /**
  * Add blocks links from each blocker to `blocked`, skipping links that already exist.
  *
+ * @param env - The mutation environment.
+ * @param blocked - The ticket that must wait.
+ * @param blockerIds - The prerequisites.
+ * @param actor - Who links them.
+ * @param options - `isNew` skips the cycle walk for a ticket that blocks nothing yet.
  * @returns How many of the new links point at a blocker that is not completed.
  */
 export async function addBlockers(
@@ -575,6 +651,7 @@ async function releaseOne(env: Env, dependent: Ticket): Promise<void> {
 /**
  * Tell every dependent that a blocker ended. `completed` clears one blocker each;
  * any other ending clears nothing, emits `blocker_failed` and resumes held waiters.
+ * Dependents that are done or canceled are left alone.
  *
  * @param env - The mutation environment.
  * @param blocker - The ticket that just reached done or canceled.
@@ -630,6 +707,10 @@ export async function removeBlocker(env: Env, link: Doc<"links">): Promise<void>
 /**
  * Count a requester's active tickets in one queue, reading at most `cap` rows per category.
  *
+ * @param env - The mutation environment.
+ * @param requesterRef - The requester.
+ * @param queue - The queue name.
+ * @param cap - The most rows to read per category, and the most this returns.
  * @returns The count, capped at `cap`.
  */
 export async function countOpenFor(env: Env, requesterRef: string, queue: string, cap: number): Promise<number> {
@@ -651,9 +732,15 @@ export async function countOpenFor(env: Env, requesterRef: string, queue: string
 }
 
 /**
- * Handle a waiting ticket's `waitingOn` attribute for a target state.
+ * Pick the waiting state a ticket lands in for a given wait.
  *
+ * @param env - The mutation environment.
+ * @param ticket - The ticket that will wait.
+ * @param waitingOn - What it waits on.
+ * @param to - An explicit waiting state, if the caller chose one.
  * @returns The waiting state to land on.
+ * @throws `UNKNOWN_STATE` or `INVALID_TARGET` when `to` is not a waiting state that fits `waitingOn`.
+ * @throws `NO_LANDING_STATE` when the queue has no waiting state that fits.
  */
 export async function waitingLanding(env: Env, ticket: Ticket, waitingOn: WaitingOn, to?: string): Promise<string> {
   const queue = await queueOf(env, ticket.queue);
@@ -700,7 +787,7 @@ export async function insertMessage(
 }
 
 /**
- * Read the last few handoffs of a ticket, newest first. A bounded read.
+ * Read the most recent transitions of a ticket, newest first. A bounded read.
  *
  * @param env - The mutation environment.
  * @param ticketId - The ticket.
