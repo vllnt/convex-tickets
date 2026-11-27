@@ -789,7 +789,7 @@ export class Tickets<Q extends QueueMap> {
    * @param args - `linkId`.
    * @returns Null.
    * @throws `NOT_FOUND` when the link does not exist.
-   * @throws `SEALED` when the link's owner is closed, or for a `blocks` link the waiting ticket is.
+   * @throws `SEALED` when the link's owner is closed (for a `blocks` link: when the waiting ticket is; a sealed blocker's link can still be removed, so its dependents can be freed).
    */
   async unlink(ctx: RunMutationCtx, args: { linkId: string }): Promise<null> {
     return await ctx.runMutation(this.component.mutations.unlink, args);

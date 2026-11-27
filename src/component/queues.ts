@@ -9,9 +9,9 @@ const REQUIRED_CATEGORIES: readonly Category[] = ["unstarted", "started", "done"
 
 const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_:.\- ]*$/;
 
-const KEY_PATTERN = /^[\x20-\x7E]+$/;
+const KEY_PATTERN = /^[\x20-\x7E]{1,1024}$/;
 
-/** Convex stores a field name only when it is non-empty printable ASCII and does not start with `$` or `_`. */
+/** Convex stores a field name only when it is 1 to 1024 printable ASCII characters and does not start with `$` or `_`. */
 function isStorableKey(key: string): boolean {
   return KEY_PATTERN.test(key) && !key.startsWith("$") && !key.startsWith("_");
 }

@@ -110,7 +110,13 @@ async function recordTrip(
   code: "HOP_LIMIT" | "PING_PONG" | "MESSAGE_LIMIT",
   text: string,
 ): Promise<void> {
-  await transition(env, ticket, {}, { type: "guardrail_tripped", actor, reason: `${code}: ${text}` });
+  const reason = `${code}: ${text}`;
+  const recent = await recentTransitions(env, ticket._id);
+  for (const row of recent) {
+    if (row.type !== "guardrail_tripped") break;
+    if (row.reason === reason) return;
+  }
+  await transition(env, ticket, {}, { type: "guardrail_tripped", actor, reason });
 }
 
 /**
@@ -1249,7 +1255,7 @@ export const link = mutation({
  * Returns null.
  *
  * @throws `NOT_FOUND` when the link does not exist.
- * @throws `SEALED` when the link's owner is closed, or for a `blocks` link the waiting ticket is.
+ * @throws `SEALED` when the link's owner is closed (for a `blocks` link: when the waiting ticket is; a sealed blocker's link can still be removed, so its dependents can be freed).
  */
 export const unlink = mutation({
   args: { linkId: v.id("links") },
@@ -1258,7 +1264,7 @@ export const unlink = mutation({
     const env = await makeEnv(ctx);
     const row = await ctx.db.get("links", args.linkId);
     if (!row) throw ticketsError("NOT_FOUND", `link ${args.linkId} does not exist`);
-    const touched = row.relation === "blocks" ? [row.ticketId, row.toTicketId] : [row.ticketId];
+    const touched = row.relation === "blocks" ? [row.toTicketId] : [row.ticketId];
     const tickets = await Promise.all(touched.map((id) => (id === undefined ? null : ctx.db.get("tickets", id))));
     for (const ticket of tickets) {
       if (ticket) assertNotSealed(ticket);

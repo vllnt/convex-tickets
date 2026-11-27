@@ -663,18 +663,15 @@ describe("J: links on sealed tickets", () => {
     expect((await ticketOf(t, sealing, owner)).links).toMatchObject([{ linkId }]);
   });
 
-  test("unlink of a blocks link is SEALED once the blocker is sealed", async () => {
+  test("unlink of a blocks link still works once the blocker is sealed, so the dependent is not stuck", async () => {
     const t = await ready(sealing);
     const blocker = await openGone(t, "blocker");
     const dependent = await openLive(t, "dependent");
     const linkId = await t.run((ctx) => sealing.link(ctx, { ticketId: blocker, actor: LEAD, relation: "blocks", toTicketId: dependent }));
     await sealByCompleting(t, blocker);
 
-    await expectCode(
-      t.run((ctx) => sealing.unlink(ctx, { linkId })),
-      "SEALED",
-    );
-    expect((await ticketOf(t, sealing, dependent)).blockers).toMatchObject([{ linkId }]);
+    await t.run((ctx) => sealing.unlink(ctx, { linkId }));
+    expect((await ticketOf(t, sealing, dependent)).blockers).toEqual([]);
   });
 
   test("unlink of a blocks link is SEALED once the dependent is sealed", async () => {

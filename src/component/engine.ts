@@ -587,6 +587,7 @@ export async function addBlocker(
   if (dependents.length >= env.limits.maxBlocked) {
     throw ticketsError("TOO_MANY_BLOCKED", `a ticket can block at most ${env.limits.maxBlocked} others`);
   }
+  assertNotSealed(blocker);
   const ended = blocker.category === "done" || blocker.category === "canceled";
   if (ended && !isCompleted(blocker)) {
     throw ticketsError("INVALID_ARGUMENT", `blocker ${blockerId} ended without completing, so it can never clear`);

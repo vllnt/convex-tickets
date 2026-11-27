@@ -440,15 +440,18 @@ is not completed. A blocker that already ended without completing (`failed`,
 `rejected` or `canceled`) throws `INVALID_ARGUMENT`, since it can never clear.
 
 A link needs a ticket that is not sealed: `link` throws `SEALED` when `ticketId`
-is sealed, and for `blocks` also when `toTicketId` is. A `relates` or
+is sealed, and for `blocks` also when `toTicketId` is. `open` with `blockedBy`
+and `hold` with `blockers` refuse a sealed blocker the same way. A `relates` or
 `duplicates` link from an active ticket to a sealed one is allowed.
 
 ### unlink(ctx, { linkId })
 
 Remove a link. **Returns:** `null`. Removing a `blocks` link keeps the blocked
 ticket's counter exact, and may release it (`unblocked` or `resumed`). Throws
-`SEALED` when the link's owner (`ticketId`) is sealed, or, for a `blocks` link,
-when the blocked ticket is. The retention purge does not go through `unlink`.
+`SEALED` when the link's owner (`ticketId`) is sealed; for a `blocks` link, only
+when the blocked ticket is sealed. A sealed blocker's link can still be removed,
+so a ticket waiting on a blocker that failed and sealed can be freed. The
+retention purge does not go through `unlink`.
 
 ### isIn(ticket, queue)
 
@@ -505,9 +508,11 @@ state after any immediate seal.
 
 A refusal that does not escalate writes one `guardrail_tripped` transition, and
 one event, with the code and a short text as `reason` and the caller as the
-actor. Nothing else on the ticket changes, and `claimSeq` stays. A caller that
-retries a refused call writes one more row and event each time. Refusals that
-throw (`RATE_LIMITED`, `TOO_MANY_OPEN`) cannot be recorded: the call rolls back.
+actor. Nothing else on the ticket changes, and `claimSeq` stays. Retries are not
+recorded twice: while no other transition happens on the ticket, the same code
+is recorded once, so a stuck caller cannot flood the history or push older
+handoffs out of the ping-pong window. Refusals that throw (`RATE_LIMITED`,
+`TOO_MANY_OPEN`) cannot be recorded: the call rolls back.
 
 ## The ticketEvent payload
 
@@ -640,7 +645,7 @@ try {
 | `NOT_FOUND`              | A ticket, parent, blocker or link id does not exist                                                                                                                                                                                                                                                                                                                                                         |
 | `WRONG_QUEUE`            | The `queue` argument does not match the ticket's queue                                                                                                                                                                                                                                                                                                                                                      |
 | `INVALID_MOVE`           | The ticket is in a category the verb does not accept, or `move` crosses categories                                                                                                                                                                                                                                                                                                                          |
-| `SEALED`                 | The ticket is closed and takes no more writes. `link` and `unlink` also refuse a link whose owner, or for `blocks` whose blocked ticket, is closed                                                                                                                                                                                                                                                          |
+| `SEALED`                 | The ticket is closed and takes no more writes. `link`, `open` (`blockedBy`) and `hold` (`blockers`) also refuse a sealed blocker; `unlink` refuses a link whose owner, or for `blocks` whose blocked ticket, is closed                                                                                                                                                                                      |
 | `CLAIM_LOST`             | The `claimSeq` is stale, or the lease of a started ticket expired                                                                                                                                                                                                                                                                                                                                           |
 | `NOT_HOLDER`             | The caller is not the holder                                                                                                                                                                                                                                                                                                                                                                                |
 | `NOT_REQUESTER`          | `cancel` or `reopen` by someone who is not the requester and not `trusted`                                                                                                                                                                                                                                                                                                                                  |
