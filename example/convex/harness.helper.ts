@@ -1,11 +1,13 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
+import type { TestConvex } from "convex-test";
 import { expect, vi } from "vitest";
 import { Tickets, defineQueue, isTicketsError } from "../../src/client/index.js";
 import type { Party, TicketsErrorCode } from "../../src/client/index.js";
 import { deskQueue, projectQueue } from "../../src/client/presets.js";
 import { register } from "../../src/test.js";
 import { components, internal } from "./_generated/api.js";
+import type { Doc } from "./_generated/dataModel.js";
 import schema from "./schema.js";
 
 /**
@@ -19,14 +21,14 @@ export const HOUR = 60 * MINUTE;
 export const DAY = 24 * HOUR;
 
 /** A fresh backend with fake timers and both mounts registered. Call `vi.useRealTimers()` in afterEach. */
-export function setup() {
+export function setup(): TestConvex<typeof schema> {
   vi.useFakeTimers();
   const t = convexTest(schema, modules);
   register(t, "tickets");
   register(t, "strictTickets");
   return t;
 }
-export type T = ReturnType<typeof setup>;
+export type T = TestConvex<typeof schema>;
 
 /**
  * Run every scheduled function that is due within `ms` (default: now), repeatedly,
@@ -92,6 +94,6 @@ export async function expectCode(promise: Promise<unknown>, code: TicketsErrorCo
 }
 
 /** Read every hook event the app recorded, in arrival order. */
-export async function events(t: T) {
+export async function events(t: T): Promise<Doc<"ticketEvents">[]> {
   return await t.run(async (ctx) => await ctx.db.query("ticketEvents").collect());
 }

@@ -4,6 +4,8 @@ export default defineConfig({
   test: {
     // Shared dev hosts: keep test parallelism low.
     maxWorkers: 2,
+    // convex-test tests that open many tickets take seconds under coverage on a busy host.
+    testTimeout: 30_000,
     environment: "edge-runtime",
     exclude: ["**/node_modules/**", "dist/**"],
     typecheck: {

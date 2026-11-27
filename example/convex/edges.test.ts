@@ -1,6 +1,6 @@
 import { componentsGeneric } from "convex/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { Tickets, defineQueue } from "../../src/client/index.js";
+import { Tickets, defineQueue, isTicketsError, toQueueDef } from "../../src/client/index.js";
 import type { ClaimResult } from "../../src/client/index.js";
 import { ticketTools } from "../../src/client/tools.js";
 import { api, components, internal } from "./_generated/api.js";
@@ -153,13 +153,13 @@ describe("configuration edges", () => {
     const askOnly = new Tickets(components.tickets, {
       queues: {
         ask: defineQueue({
-          states: [
-            { name: "open", category: "unstarted" },
-            { name: "doing", category: "started" },
-            { name: "asked", category: "waiting", on: "requester" },
-            { name: "done", category: "done" },
-            { name: "dropped", category: "canceled" },
-          ],
+          states: {
+            open: { category: "unstarted" },
+            doing: { category: "started" },
+            asked: { category: "waiting", on: "requester" },
+            done: { category: "done" },
+            dropped: { category: "canceled" },
+          },
         }),
       },
     });
@@ -169,6 +169,21 @@ describe("configuration edges", () => {
       const seq = seqOf(await askOnly.claim(ctx, { ticketId: id, actor: A }));
       await expectCode(askOnly.hold(ctx, { ticketId: id, actor: A, claimSeq: seq, waitingOn: "external" }), "NO_LANDING_STATE");
     });
+  });
+});
+
+describe("queue definitions", () => {
+  test("states given as an array are refused with INVALID_QUEUE instead of becoming states named 0, 1, 2", () => {
+    const error: unknown = (() => {
+      try {
+        toQueueDef("arr", { states: [{ category: "unstarted" }, { category: "started" }] });
+        return undefined;
+      } catch (e: unknown) {
+        return e;
+      }
+    })();
+    expect(isTicketsError(error, "INVALID_QUEUE")).toBe(true);
+    expect(String(error)).toContain("not an array");
   });
 });
 

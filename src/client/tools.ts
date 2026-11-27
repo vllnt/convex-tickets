@@ -1,3 +1,4 @@
+import type { FunctionReturnType } from "convex/server";
 import { v } from "convex/values";
 import type { ObjectType, PropertyValidators } from "convex/values";
 import {
@@ -8,7 +9,8 @@ import {
   visibilityValidator,
 } from "../shared.js";
 import type { Party, Visibility } from "../shared.js";
-import type { ListFilter, Tickets } from "./index.js";
+import type { ComponentApi } from "../component/_generated/component.js";
+import type { ListFilter, TicketDetail, Tickets } from "./index.js";
 import type { QueueMap, RunMutationCtx } from "./types.js";
 
 /**
@@ -66,6 +68,62 @@ const listArgs = {
   numItems: v.optional(v.number()),
 };
 
+const getArgs = { ticketId: v.string() };
+
+const claimArgs = { ticketId: v.optional(v.string()), queue: v.optional(v.string()) };
+
+const replyArgs = {
+  ticketId: v.string(),
+  body: v.string(),
+  visibility: v.optional(visibilityValidator),
+  fields: v.optional(scalarRecordValidator),
+  idempotencyKey: v.optional(v.string()),
+};
+
+const requestInputArgs = {
+  ticketId: v.string(),
+  claimSeq: v.number(),
+  body: v.string(),
+  fields: v.optional(v.array(v.string())),
+};
+
+const handoffArgs = {
+  ticketId: v.string(),
+  claimSeq: v.number(),
+  toQueue: v.optional(v.string()),
+  toParty: v.optional(partyValidator),
+  reason: v.optional(v.string()),
+  fields: v.optional(scalarRecordValidator),
+};
+
+const resolveArgs = {
+  ticketId: v.string(),
+  claimSeq: v.number(),
+  resolution: resolutionValidator,
+  result: v.optional(scalarRecordValidator),
+  body: v.optional(v.string()),
+};
+
+type Mutations = ComponentApi["mutations"];
+type Queries = ComponentApi["queries"];
+
+/** What the `list` tool returns: a page of tickets. A title search returns one page with `isDone: true`. */
+export type ListToolResult =
+  | FunctionReturnType<Queries["list"]>
+  | { page: FunctionReturnType<Queries["search"]>; isDone: boolean; continueCursor: string };
+
+/** The eight default tools, keyed by name. */
+export interface TicketTools {
+  open: TicketTool<typeof openArgs, FunctionReturnType<Mutations["open"]>>;
+  list: TicketTool<typeof listArgs, ListToolResult>;
+  get: TicketTool<typeof getArgs, TicketDetail | null>;
+  claim: TicketTool<typeof claimArgs, FunctionReturnType<Mutations["claim"]>>;
+  reply: TicketTool<typeof replyArgs, FunctionReturnType<Mutations["reply"]>>;
+  requestInput: TicketTool<typeof requestInputArgs, FunctionReturnType<Mutations["requestInput"]>>;
+  handoff: TicketTool<typeof handoffArgs, FunctionReturnType<Mutations["handoff"]>>;
+  resolve: TicketTool<typeof resolveArgs, FunctionReturnType<Mutations["resolve"]>>;
+}
+
 function toFilter(args: ObjectType<typeof listArgs> & { by: Exclude<ObjectType<typeof listArgs>["by"], "search"> }): ListFilter {
   switch (args.by) {
     case "queue":
@@ -94,7 +152,7 @@ function toFilter(args: ObjectType<typeof listArgs> & { by: Exclude<ObjectType<t
  * const tools = ticketTools(tickets, { party: { ref: "agent:billing", kind: "agent" } });
  * await tools.claim.handler(ctx, { queue: "billing" });
  */
-export function ticketTools<Q extends QueueMap>(tickets: Tickets<Q>, binding: ToolBinding) {
+export function ticketTools<Q extends QueueMap>(tickets: Tickets<Q>, binding: ToolBinding): TicketTools {
   const actor = binding.party;
   const view = binding.view ?? "public";
   return {
@@ -110,7 +168,7 @@ export function ticketTools<Q extends QueueMap>(tickets: Tickets<Q>, binding: To
       description:
         "List tickets by queue (optionally one state or category), by assignee, by requester, by subject or by parent ticket, or search titles (by: search, value: the text, optional queue and category). Paginated: pass the returned continueCursor as cursor.",
       args: listArgs,
-      handler: async (ctx, args) => {
+      handler: async (ctx, args): Promise<ListToolResult> => {
         const numItems = Math.min(args.numItems ?? 20, 100);
         if (args.by === "search") {
           const page = await ctx.runQuery(tickets.component.queries.search, {
@@ -131,14 +189,14 @@ export function ticketTools<Q extends QueueMap>(tickets: Tickets<Q>, binding: To
       name: "get",
       description:
         "Read one ticket: state, category, fields, result, links, blockers and recent messages. Note your claimSeq from claim; every write needs it.",
-      args: { ticketId: v.string() },
+      args: getArgs,
       handler: async (ctx, args) => await tickets.get(ctx, { ticketId: args.ticketId, view }),
     }),
     claim: tool({
       name: "claim",
       description:
         "Take a named ticket, or the next claimable one in a queue. Returns ok with a claimSeq, or a reason: TAKEN, BLOCKED, RESERVED, EMPTY or NOT_CLAIMABLE.",
-      args: { ticketId: v.optional(v.string()), queue: v.optional(v.string()) },
+      args: claimArgs,
       handler: async (ctx, args) =>
         await ctx.runMutation(tickets.component.mutations.claim, { ticketId: args.ticketId, queue: args.queue, actor }),
     }),
@@ -146,48 +204,29 @@ export function ticketTools<Q extends QueueMap>(tickets: Tickets<Q>, binding: To
       name: "reply",
       description:
         "Add a public message for the requester, or an internal note (visibility: internal) for the parties doing the work. As the requester of a ticket waiting on you, supply the requested fields.",
-      args: {
-        ticketId: v.string(),
-        body: v.string(),
-        visibility: v.optional(visibilityValidator),
-        fields: v.optional(scalarRecordValidator),
-        idempotencyKey: v.optional(v.string()),
-      },
+      args: replyArgs,
       handler: async (ctx, args) => await ctx.runMutation(tickets.component.mutations.reply, { ...args, actor }),
     }),
     requestInput: tool({
       name: "requestInput",
       description:
         "As the holder, ask the requester a question and name the queue fields you need. The ticket waits on the requester until they reply.",
-      args: { ticketId: v.string(), claimSeq: v.number(), body: v.string(), fields: v.optional(v.array(v.string())) },
+      args: requestInputArgs,
       handler: async (ctx, args) =>
         await ctx.runMutation(tickets.component.mutations.requestInput, { ...args, actor }),
     }),
     handoff: tool({
       name: "handoff",
       description:
-        "As the holder, pass the ticket to another queue (toQueue) or a named party (toParty), with a reason. Refused with HOP_LIMIT or PING_PONG when it has bounced too often; the ticket then escalates.",
-      args: {
-        ticketId: v.string(),
-        claimSeq: v.number(),
-        toQueue: v.optional(v.string()),
-        toParty: v.optional(partyValidator),
-        reason: v.optional(v.string()),
-        fields: v.optional(scalarRecordValidator),
-      },
+        "As the holder, pass the ticket to another queue (toQueue) or a named party (toParty), with a reason. Refused with HOP_LIMIT or PING_PONG when it has bounced too often; the ticket then escalates if its queue has an escalation target.",
+      args: handoffArgs,
       handler: async (ctx, args) => await ctx.runMutation(tickets.component.mutations.handoff, { ...args, actor }),
     }),
     resolve: tool({
       name: "resolve",
       description:
         "As the holder, finish the ticket as completed, failed or rejected, with a result that matches the queue. The requester reads the result as data.",
-      args: {
-        ticketId: v.string(),
-        claimSeq: v.number(),
-        resolution: resolutionValidator,
-        result: v.optional(scalarRecordValidator),
-        body: v.optional(v.string()),
-      },
+      args: resolveArgs,
       handler: async (ctx, args) => await ctx.runMutation(tickets.component.mutations.resolve, { ...args, actor }),
     }),
   };
