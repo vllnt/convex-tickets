@@ -4,7 +4,8 @@ name: Publish
 # the repository variable CANARY_ENABLED is 'true', or a manual run on main.
 # Stable (@latest): only a pushed vX.Y.Z tag whose commit is on main and
 # matches package.json and a CHANGELOG.md entry. Both use npm trusted
-# publishing (OIDC) with provenance; this workflow holds no npm token.
+# publishing (OIDC); this workflow holds no npm token. Provenance is added only
+# while the repository is public: npm refuses it from a private repository.
 
 on:
   push:
@@ -74,6 +75,8 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: bash scripts/check-package-contents.sh
       - name: Publish canary
+        env:
+          REPO_PRIVATE: ${{ github.event.repository.private }}
         run: |
           set -euo pipefail
           sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
@@ -88,7 +91,9 @@ jobs:
           fi
           CANARY_VERSION="${BASE_VERSION}-canary.${GITHUB_SHA::7}"
           npm version "$CANARY_VERSION" --no-git-tag-version --ignore-scripts
-          npm publish --tag canary --provenance --access public --ignore-scripts
+          PROVENANCE=()
+          if [ "$REPO_PRIVATE" != "true" ]; then PROVENANCE=(--provenance); fi
+          npm publish --tag canary "${PROVENANCE[@]}" --access public --ignore-scripts
 
   release:
     name: Publish Release
@@ -130,6 +135,8 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: bash scripts/check-package-contents.sh
       - name: Publish to npm
+        env:
+          REPO_PRIVATE: ${{ github.event.repository.private }}
         run: |
           set -euo pipefail
           sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
@@ -140,7 +147,9 @@ jobs:
           if [ -n "$(npm view "${PKG}@${VERSION}" version 2>/dev/null || true)" ]; then
             echo "${PKG}@${VERSION} is already published"
           else
-            npm publish --tag latest --provenance --access public --ignore-scripts
+            PROVENANCE=()
+            if [ "$REPO_PRIVATE" != "true" ]; then PROVENANCE=(--provenance); fi
+            npm publish --tag latest "${PROVENANCE[@]}" --access public --ignore-scripts
           fi
 
       - name: Create GitHub Release
